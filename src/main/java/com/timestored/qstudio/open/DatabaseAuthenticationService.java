@@ -11,4 +11,6 @@ public interface DatabaseAuthenticationService {
 	 */
 	public ConnectionDetails getonConnectionDetails(ConnectionDetails connectionDetails);
 
+	/** @return Descriptive name for this authentication mechanism **/
+	public String getName();
 }

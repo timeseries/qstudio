@@ -13,4 +13,8 @@ public class ExampleDatabaseAuthenticationService implements DatabaseAuthenticat
 		return new ConnectionDetails(cd.getHost(), cd.getPort(), cd.getDatabase(), cd.getUsername(), password);
 	}
 
+	@Override public String getName() {
+		return "PasswordPopup";
+	}
+
 }
