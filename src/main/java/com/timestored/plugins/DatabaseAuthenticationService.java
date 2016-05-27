@@ -1,4 +1,4 @@
-package com.timestored.qstudio.open;
+package com.timestored.plugins;
 
 /**
  * Interface to allow retrieving connection details from somewhere external to qStudio. 

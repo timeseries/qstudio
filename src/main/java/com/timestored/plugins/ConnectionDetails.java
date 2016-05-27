@@ -1,4 +1,4 @@
-package com.timestored.qstudio.open;
+package com.timestored.plugins;
 
 /** Details relevant to a single database server connection. */
 public class ConnectionDetails {
