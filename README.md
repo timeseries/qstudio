@@ -1,18 +1,15 @@
 # Custom JDBC Driver and Authenticator Example
 
-This repo contains 
-
-1. A method of specifying a custom JDBC driver.
-
-2. The interfaces required to create a username/password lookup service for when you
+This repo contains interfaces required to create a username/password lookup service for when you
 want to have third party authentication of a user connecting to KDB. 
+
 
 
 ## Running qStudio with custom authentication method
 
 Start qStudio with the arguments:
 ```
-java -cp "qstudio.jar;qstudioopen.jar" com.timestored.qstudio.QStudioLauncher -Djdbc.isKDB=true -Djdbc.dbRequired=false -Djdbc.driver=kx.jdbc -Djdbc.urlFormat="jdbc:q:@HOST@:@PORT@" -Djdbc.authenticator=com.timestored.qstudio.open.ExampleDatabaseAuthenticationService
+java -cp "qstudio.jar;custom-jar.jar" com.timestored.qstudio.QStudioLauncher -Djdbc.isKDB=true -Djdbc.dbRequired=false -Djdbc.driver=kx.jdbc -Djdbc.urlFormat="jdbc:q:@HOST@:@PORT@" -Djdbc.authenticator=com.timestored.qstudio.open.ExampleDatabaseAuthenticationService
 ```
 
 This uses the existing kdb driver but with the added DatabaseAuthenticationService that prompts the user for a password every time a connection is attempted.
