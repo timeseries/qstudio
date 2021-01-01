@@ -12,4 +12,4 @@ For more info see [timestored.com/qstudio](http://timestored.com/qstudio "timest
  * **Built-in Charts** - Simply send the query you want and select the chart type wanted to draw a chart. 
  * **Syntax Highlighting**
  * **Code Completion**
- 
+ . 
