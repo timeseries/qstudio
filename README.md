@@ -1,11 +1,20 @@
-# Custom JDBC Driver and Authenticator Example
+# qStudio - Free SQL Analaysis Tool
+
+![Qstudio](/qstudio.png)
+
+Provides easy browsing of tables, variables, functions and configuration settings.
+For more info see [timestored.com/qstudio](http://timestored.com/qstudio "timestored.com/qstudio")
+
+This repository contains examples of custom plugins and authentication only.
+
+## Custom JDBC Driver and Authenticator Example
 
 This repo contains interfaces required to create a username/password lookup service for when you
 want to have third party authentication of a user connecting to KDB. 
 
 
 
-## Running qStudio with custom authentication method
+### Running qStudio with custom authentication method
 
 Start qStudio with the arguments:
 ```
@@ -16,7 +25,7 @@ This uses the existing kdb driver but with the added DatabaseAuthenticationServi
 To implement your own user/password lookup create a class that implements DatabaseAuthenticationService and pass that class name as the jdbc.authenticator property.
 
 
-## What the arguments mean:
+### What the arguments mean:
 
 * ``jdbc.isKDB=true`` - Whether this JDBC driver is for kdb or not. It controls whether it is displayed as an option in qStudio.
 * ``jdbc.dbRequired=false`` - Controls whether the database is added to the JDBC URL. 
@@ -25,7 +34,7 @@ To implement your own user/password lookup create a class that implements Databa
 * ``jdbc.authenticator=com.timestored.qstudio.open.ExampleDatabaseAuthenticationService`` - What class to use to lookup connection details. 
 
 
-## sqlDashboards Custom JDBC drivers
+### sqlDashboards Custom JDBC drivers
 
 *This is untested*. Start sqlDashboards with the arguments:
 
