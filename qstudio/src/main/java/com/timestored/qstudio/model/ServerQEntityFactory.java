@@ -1,3 +1,19 @@
+/*
+ * qStudio - Free SQL Analysis Tool
+ * Copyright C 2013-2023 TimeStored
+ *
+ * Licensed under the Apache License, Version 2.0 the "License";
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.timestored.qstudio.model;
 
 
@@ -8,8 +24,12 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.timestored.connections.JdbcTypes;
+import com.timestored.connections.ServerConfig;
 import com.timestored.cstore.CAtomTypes;
 import com.timestored.misc.HtmlUtils;
+
+import lombok.Getter;
 
 /**
  * Factory to aid construction of {@link ServerQEntity}'s.
@@ -26,15 +46,15 @@ class ServerQEntityFactory {
 	 * @param count Count if known or -1 to specify unknown.
 	 */
 	static ServerQEntity get(String serverName, String namespace, String name, Short typeNum, long count,
-			boolean isTable, boolean partitioned, boolean isView, String[] colArgNames) {
+			boolean isTable, boolean partitioned, boolean isView, String[] colArgNames, JdbcTypes jdbcTypes) {
 		CAtomTypes t = CAtomTypes.getType(typeNum);
 		if(t==null) {
 			return null; // can't recognise type, return
 		}
 		if(isView) {
-			return ServerQEntityFactory.getView(serverName, namespace, name);
+			return getView(serverName, namespace, name);
 		} else if(isTable) {
-			return ServerQEntityFactory.getTable(serverName, namespace, name, typeNum, count, partitioned, colArgNames);
+			return getTable(serverName, namespace, name, typeNum, count, partitioned, colArgNames, jdbcTypes);
 		} else if(t.isList()) {
 			return new ListSQE(serverName, namespace, name, t, count);
 		} else if (t.equals(CAtomTypes.DICTIONARY)){
@@ -47,9 +67,15 @@ class ServerQEntityFactory {
 	}
 
 	static ServerQEntity getTable(String serverName, String namespace, String name, int typeNum, long count, 
+			boolean isPartitioned, String[] colNames, JdbcTypes jdbcTypes) {
+		return new TableSQE(serverName, namespace, name, CAtomTypes.getType(typeNum), 
+				count, isPartitioned,  colNames, jdbcTypes);
+	}
+
+	static ServerQEntity getTable(String serverName, String namespace, String name, int typeNum, long count, 
 			boolean isPartitioned, String[] colNames) {
 		return new TableSQE(serverName, namespace, name, CAtomTypes.getType(typeNum), 
-				count, isPartitioned,  colNames);
+				count, isPartitioned,  colNames, null);
 	}
 
 	static ServerQEntity getAtom(String serverName, String namespace, String name, int typeNum) {
@@ -73,7 +99,7 @@ class ServerQEntityFactory {
 	/** {@link ServerQEntity} for lists only */
 	private static class ListSQE extends BaseSQE {
 
-		private final long count;
+		@Getter private final long count;
 		
 		public ListSQE(String serverName, String namespace, String name, CAtomTypes type, long count) {
 			super(serverName, namespace, name, type);
@@ -82,29 +108,20 @@ class ServerQEntityFactory {
 			this.count = count;
 		}
 
-		@Override public long getCount() {
-			return count;
-		}
-
 		@Override public boolean isTable() {
 			return false;
 		}
-		
 	}
 
 	/** {@link ServerQEntity} for dicts only */
 	private static class DictSQE extends BaseSQE {
 
-		private final long count;
+		@Getter private final long count;
 		
 		public DictSQE(String serverName, String namespace, String name, long count) {
 			super(serverName, namespace, name, CAtomTypes.DICTIONARY);
 			Preconditions.checkArgument(count>=0);
 			this.count = count;
-		}
-
-		@Override public long getCount() {
-			return count;
 		}
 
 		@Override public boolean isTable() {

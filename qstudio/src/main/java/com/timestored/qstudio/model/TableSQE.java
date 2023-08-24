@@ -1,3 +1,19 @@
+/*
+ * qStudio - Free SQL Analysis Tool
+ * Copyright C 2013-2023 TimeStored
+ *
+ * Licensed under the Apache License, Version 2.0 the "License";
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.timestored.qstudio.model;
 
 import static com.timestored.cstore.CAtomTypes.DICTIONARY;
@@ -14,24 +30,29 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.timestored.connections.JdbcTypes;
+import com.timestored.connections.MetaInfo;
 import com.timestored.cstore.CAtomTypes;
 import com.timestored.misc.HtmlUtils;
 import com.timestored.theme.Theme.CIcon;
+
+import lombok.Getter;
+import lombok.NonNull;
 
 
 /** {@link ServerQEntity} for tables only */
 public class TableSQE extends BaseSQE {
 
-	private final long count;
-	private final boolean isPartitioned;
-	private final List<String> colNames;
+	@Getter private final long count;
+	@Getter private final boolean isPartitioned;
+	@Getter private final List<String> colNames;
+	@NonNull private final JdbcTypes jdbcTypes;
 
 	/**
-	 * 
 	 * @param count Count if known or -1 to specify unknown.
 	 */
 	TableSQE(String serverName, String namespace, String name, CAtomTypes type, 
-			long count, boolean isPartitioned, String[] colNames) {
+			long count, boolean isPartitioned, String[] colNames, JdbcTypes jdbcTypes) {
 		
 		super(serverName, namespace, name, type);
 		Preconditions.checkArgument(count>=-2);
@@ -39,14 +60,11 @@ public class TableSQE extends BaseSQE {
 		Preconditions.checkArgument(colNames.length>0);
 		CAtomTypes t = getType();
 		Preconditions.checkArgument(t.equals(TABLE) || t.equals(DICTIONARY));
-		
+
 		this.count = count;
 		this.isPartitioned = isPartitioned;
 		this.colNames = Arrays.asList(colNames);
-	}
-
-	@Override public long getCount() {
-		return count;
+		this.jdbcTypes = jdbcTypes == null ? JdbcTypes.KDB : jdbcTypes;
 	}
 
 	@Override public boolean isTable() {
@@ -62,16 +80,6 @@ public class TableSQE extends BaseSQE {
 	@Override public String toString() {
 		return "TableSQE[" + getName() + " count=" + count 
 				+ " cols=" + Joiner.on(",").join(colNames) + "]";
-	}
-	
-	
-	public List<String> getColNames() {
-		return colNames;
-	}
-	
-	
-	public boolean isPartitioned() {
-		return isPartitioned;
 	}
 	
 	@Override public boolean equals(Object o) {
@@ -136,39 +144,15 @@ public class TableSQE extends BaseSQE {
 	@Override public List<QQuery> getQQueries() {
 		List<QQuery> r = new ArrayList<ServerQEntity.QQuery>();
 
-		String qry;
 		String fn = getFullName();
 		
-		// select top 100
-		if(isPartitioned) {
-			qry = ".Q.ind["+fn+"; `long$til 100]";
-		} else {
-			qry = "select[100] from "+fn;
+		r.add(new QQuery("Select Top 100", CIcon.TABLE_ELEMENT, MetaInfo.getTop100Query(jdbcTypes, colNames, fn, isPartitioned, false)));
+		r.add(new QQuery("Select Col1,Col2... from Top 100", CIcon.TABLE_ELEMENT, MetaInfo.getTop100Query(jdbcTypes, colNames, fn, isPartitioned, true)));
+		if(jdbcTypes.isKDB()) {
+			r.add(new QQuery("Select Bottom 100", CIcon.TABLE_ELEMENT, MetaInfo.getBottom100query(jdbcTypes, colNames, fn, isPartitioned, false)));
+			r.addAll(super.getQQueries());
 		}
-		r.add(new QQuery("Select Top 100", CIcon.TABLE_ELEMENT, qry));
-
-		// select bottom 100
-		r.add(new QQuery("Select Bottom 100", CIcon.TABLE_ELEMENT, 
-				getBottom100query(fn, false)));
-
-		// select bottom 100 NAMED
-		r.add(new QQuery("Select Col1,Col2... from Bottom 100", 
-				CIcon.TABLE_ELEMENT, getBottom100query(fn,true)));
-	
-		r.addAll(super.getQQueries());
+		
 		return r;		
-	}
-	
-	private String getBottom100query(String fullname, boolean includeColumnNames) {
-		String cols = "";
-		if (includeColumnNames && colNames != null) {
-			cols = Joiner.on(',').join(colNames);
-		}
-		if (isPartitioned) {
-			return "select " + cols + " from .Q.ind[" + fullname 
-					+ "; `long$-100 + (count " + fullname + ")+til 100]";
-		} else {
-			return "select[-100] " + cols + " from " + fullname;
-		}
 	}
 }

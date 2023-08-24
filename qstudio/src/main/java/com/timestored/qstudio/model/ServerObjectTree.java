@@ -1,3 +1,19 @@
+/*
+ * qStudio - Free SQL Analysis Tool
+ * Copyright C 2013-2023 TimeStored
+ *
+ * Licensed under the Apache License, Version 2.0 the "License";
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.timestored.qstudio.model;
 
 import java.io.IOException;
@@ -13,6 +29,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import javax.activation.UnsupportedDataTypeException;
 import javax.sql.rowset.CachedRowSet;
@@ -21,6 +38,7 @@ import kx.c.Dict;
 import kx.c.KException;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NonNull;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.MoreObjects;
@@ -28,6 +46,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.timestored.connections.ConnectionManager;
+import com.timestored.connections.MetaInfo;
+import com.timestored.connections.MetaInfo.ColumnInfo;
 import com.timestored.connections.ServerConfig;
 import com.timestored.cstore.CAtomTypes;
 import com.timestored.kdb.KdbConnection;
@@ -130,28 +150,26 @@ public class ServerObjectTree {
 	}
 
 
-	private static Map<String, NamespaceListing> getNSqlListing(ServerConfig serverConfig, ConnectionManager connectionManager)
-			throws IOException, KException, UnsupportedDataTypeException {
-
-		Map<String,List<String>> tableNamesToColNames = Collections.emptyMap();
-		try {
-			tableNamesToColNames = connectionManager.getMetaInfo(serverConfig); 
-		} catch (SQLException e) {
-			LOG.log(Level.WARNING, "Error creating SQL server tree", e);
-		}
+	private static Map<String, NamespaceListing> getNSqlListing(ServerConfig serverConfig, ConnectionManager connectionManager) 
+			throws Exception {
 
 		List<ServerQEntity> allElements = new ArrayList<>();
-		for(Entry<String, List<String>> tblCols : tableNamesToColNames.entrySet()) {
+		MetaInfo mi = MetaInfo.getMetaInfo(connectionManager, serverConfig);
+		
+		Map<String, List<ColumnInfo>> tnToCi = mi.getColumnInfo().stream().collect(Collectors.groupingBy(ci -> ci.getFullTableName()));
+		for(Entry<String, List<ColumnInfo>> e : tnToCi.entrySet()) {
 			String serverName = serverConfig.getName();
 			boolean isView = false;
-			String[] colNames = tblCols.getValue().toArray(new String[] {});
+			String[] colNames = e.getValue().stream().map(ci -> ci.getColumnName()).collect(Collectors.toList()).toArray(new String[] {});
 			short typNum = (short) CAtomTypes.TABLE.getTypeNum();
-			ServerQEntity sqe = ServerQEntityFactory.get(serverName, ".", tblCols.getKey(), typNum, 0, true, false, isView, colNames);
+			String ns = e.getValue().get(0).getNamespace();
+			ns = ns.isEmpty() ? "." : ns;
+			String shortTblName = e.getValue().get(0).getTableName();
+			ServerQEntity sqe = ServerQEntityFactory.get(serverName, ns, shortTblName, typNum, 0, true, false, isView, colNames, serverConfig.getJdbcType());
 			allElements.add(sqe);
 		}
-		
 		HashMap<String, NamespaceListing> r = new HashMap<String, NamespaceListing>();
-		r.put(".",new NamespaceListing(allElements));
+		allElements.stream().collect(Collectors.groupingBy(sqe -> sqe.getNamespace())).forEach((ns,sqel) -> r.put(ns, new NamespaceListing(sqel)));
 		return r;
 	}
 	
@@ -184,7 +202,7 @@ public class ServerObjectTree {
 
 			if(nsList[i] instanceof Dict) {
 				Dict nsTree = (Dict) nsList[i];
-				allElements = toElementListing(serverConfig.getName(), ns, nsTree);
+				allElements = toElementListing(serverConfig, ns, nsTree);
 				ns2e.put(ns, new NamespaceListing(allElements));
 			} else {
 				problemNSs.add(ns);
@@ -211,7 +229,7 @@ public class ServerObjectTree {
 		return refreshResult.namespaceListingMap.keySet();
 	}
 	
-	private static List<ServerQEntity> toElementListing(String serverName,
+	private static List<ServerQEntity> toElementListing(ServerConfig sc,
 			String namespace, Dict tree) {
 
 		String[] elementNames = (String[]) tree.x;
@@ -230,8 +248,8 @@ public class ServerObjectTree {
 					long count = d[1] instanceof Number ? ((Number) d[1]).longValue() : -1;
 					
 					ServerQEntity sqe;
-					sqe = ServerQEntityFactory.get(serverName, namespace, elementNames[i], type, 
-							count, isTable, partitioned, isView, colNames);
+					sqe = ServerQEntityFactory.get(sc.getName(), namespace, elementNames[i], type, 
+							count, isTable, partitioned, isView, colNames, sc.getJdbcType());
 					if(sqe == null) {
 						LOG.warning("unrecognised ServerQEntity: " + namespace + "." + elementNames[i]);
 					} else {
