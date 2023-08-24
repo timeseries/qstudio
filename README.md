@@ -1,6 +1,6 @@
 # qStudio - Free SQL Analysis Tool
 
-![Qstudio](/qstudio.png)
+![Qstudio](qstudio/qstudio.png)
 
 **qStudio is a free SQL GUI**, it allows running SQL scripts, easy browsing of tables, charting and exporting of results. 
 It works on every operating system, with every database including mysql, postgresql, mssql, kdb.... 
