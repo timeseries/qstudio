@@ -1,4 +1,4 @@
-# qStudio - Free SQL Analaysis Tool
+# qStudio - Free SQL Analysis Tool
 
 ![Qstudio](/qstudio.png)
 
