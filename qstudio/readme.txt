@@ -9,6 +9,12 @@ ___________________________________________________________________
 
 Changelog:
 
+2023-08-10 - 2.51   - Add support for format 2022 license. In preparation for no longer supporting old 2013qs license format.
+
+2023-08-04 - 2.40   - Improve SQL database support. Show server tree for many databases.
+
+2023-07-31 - 2.34   - Improve SQLite support. Allow File->Open Database.
+
 2023-07-27 - 2.33   - Add support for 30+ databases, improve server tree support.
 					- Bundle JRE11 with windows installer and zip.
 
