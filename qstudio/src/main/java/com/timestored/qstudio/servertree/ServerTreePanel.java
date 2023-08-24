@@ -1,3 +1,19 @@
+/*
+ * qStudio - Free SQL Analysis Tool
+ * Copyright C 2013-2023 TimeStored
+ *
+ * Licensed under the Apache License, Version 2.0 the "License";
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.timestored.qstudio.servertree;
 
 
@@ -5,10 +21,12 @@ import static com.timestored.theme.Theme.CENTRE_BORDER;
 import static com.timestored.theme.Theme.GAP;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -63,12 +81,12 @@ public class ServerTreePanel extends JPanel {
 		serverListPanel = new ServerListPanel(adminModel, commonActions, parentFrame);
 		objectTreePanel = new ObjectTreePanel(adminModel, queryManager, openDocumentsModel);
 
-		JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, 
-				serverListPanel, objectTreePanel);
-		splitPane.setResizeWeight(0.4);
-		
+		final JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, serverListPanel, objectTreePanel);
 		setLayout(new BorderLayout());
-		add(splitPane);
+		add(splitPane, BorderLayout.CENTER);
+		splitPane.setResizeWeight(0.4);
+		splitPane.setDividerLocation(0.4);
+		splitPane.revalidate();
 		
 	}
 	
@@ -109,6 +127,9 @@ class ObjectTreePanel extends JPanel {
 		this.queryManager = queryManager;
 		this.openDocumentsModel = openDocumentsModel;
 		setLayout(new BorderLayout(GAP,GAP));
+		JPanel p = new JPanel();
+		p.setPreferredSize(new Dimension(400, 400));
+		add(new JScrollPane(p), BorderLayout.CENTER);
 		
 		adminModel.addListener(new AdminModel.Listener() {
 			
@@ -179,8 +200,8 @@ class ObjectTreePanel extends JPanel {
 				DefaultMutableTreeNode nsTree = new DefaultMutableTreeNode(nsNode, true);
 				if(ns.equals(".")) {
 					defaultNSnodes.add(nsTree);
-				}
-				for(TableSQE ed : kdbServerObjects.getTables(ns)) {
+				} 
+				for(TableSQE ed : sorted(kdbServerObjects.getTables(ns))) {
 
 					DefaultMutableTreeNode branch = new DefaultMutableTreeNode(new ServerQEntityNode(serverName, ed));
 					int i = ed.isPartitioned() ? 0 : 1;
@@ -193,13 +214,18 @@ class ObjectTreePanel extends JPanel {
 				for(ServerQEntity ed : kdbServerObjects.getViews(ns)) {
 					nsTree.add(new DefaultMutableTreeNode(new ServerQEntityNode(serverName, ed)));
 				}
-				nsTree.add(getBranch(serverName, "Functions", kdbServerObjects.getFunctions(ns)));
-				nsTree.add(getBranch(serverName, "Variables", kdbServerObjects.getVariables(ns)));
+				nsTree.add(getBranch(serverName, "Functions", sorted(kdbServerObjects.getFunctions(ns))));
+				nsTree.add(getBranch(serverName, "Variables", sorted(kdbServerObjects.getVariables(ns))));
 				top.add(nsTree);
 			}
 		}
 	}
 	
+	private static <T extends ServerQEntity> List<T> sorted(List<T> sqe) {
+		List<T> tables = new ArrayList<>(sqe);
+		Collections.sort(tables, (a,b) -> { return a.getName().compareTo(b.getName()); });
+		return tables;
+	}
 
 	/** Represents KDB namespace */
 	private class NamespaceNode extends CustomNode {

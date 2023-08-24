@@ -1,9 +1,26 @@
+/*
+ * qStudio - Free SQL Analysis Tool
+ * Copyright C 2013-2023 TimeStored
+ *
+ * Licensed under the Apache License, Version 2.0 the "License";
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.timestored.qstudio.servertree;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -13,9 +30,12 @@ import javax.swing.JPanel;
 
 import kx.c.KException;
 
+import com.timestored.connections.JdbcTypes;
+import com.timestored.connections.ServerConfig;
 import com.timestored.cstore.CAtomTypes;
 import com.timestored.qstudio.model.AdminModel;
 import com.timestored.qstudio.model.ServerQEntity;
+import com.timestored.qstudio.model.ServerQEntity.QQuery;
 import com.timestored.sqldash.chart.ChartTheme;
 import com.timestored.sqldash.chart.DataTableViewStrategy;
 import com.timestored.sqldash.model.ChartWidget;
@@ -85,7 +105,7 @@ class ElementDisplayFactory {
 				return new FunctionEditingPanel(adminModel, queryName);
 			}
 		} else if (elementDetails.isTable()) {
-			return new NonkdbTablePanel(adminModel, queryName, chartTheme);
+			return new NonkdbTablePanel(adminModel, elementDetails, chartTheme);
 		}
 		return null;
 	}
@@ -93,22 +113,26 @@ class ElementDisplayFactory {
 	private static class NonkdbTablePanel extends JPanel {
 		private static final long serialVersionUID = 1L;
 
-		public NonkdbTablePanel(AdminModel adminModel, String queryName, ChartTheme chartTheme) {
+		public NonkdbTablePanel(AdminModel adminModel, ServerQEntity serverEntity, ChartTheme chartTheme) {
 			setLayout(new BorderLayout());
 			ChartWidget app = new ChartWidget();
 			app.setChartTheme(chartTheme);
 			String qsrv = adminModel.getSelectedServerName();
-			String sqlQuery = "SELECT * FROM " + queryName + " LIMIT 100;";
+			JdbcTypes t = adminModel.getConnectionManager().getServer(qsrv).getJdbcType();
+
 			try {
-				CachedRowSet r = adminModel.getConnectionManager().executeQuery(adminModel.getServerModel().getServerConfig(), sqlQuery );
-				Queryable q = new Queryable(qsrv, sqlQuery);
-				app.setQueryable(q);
-				app.setViewStrategy(DataTableViewStrategy.getInstance(true));
-				//  new JScrollPane()
-				JPanel p = app.getPanel();
-				app.tabChanged(q, r);
-				add(p, BorderLayout.CENTER);
-				revalidate();
+				if(serverEntity.getQQueries().size() > 0) {
+					String sqlQuery = serverEntity.getQQueries().get(0).getQuery();
+					CachedRowSet r = adminModel.getConnectionManager().executeQuery(adminModel.getServerModel().getServerConfig(), sqlQuery );
+					Queryable q = new Queryable(qsrv, sqlQuery);
+					app.setQueryable(q);
+					app.setViewStrategy(DataTableViewStrategy.getInstance(true));
+					//  new JScrollPane()
+					JPanel p = app.getPanel();
+					app.tabChanged(q, r);
+					add(p, BorderLayout.CENTER);
+					revalidate();
+				}
 			} catch (SQLException | IOException e) {
 			}
 		}
