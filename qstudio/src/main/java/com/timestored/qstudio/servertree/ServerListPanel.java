@@ -473,7 +473,7 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 				}
 			});
 			menu.add(refreshMenuItem);
-
+			menu.add(commonActions.getCloseConnServerAction(sc));
 
 			JMenuItem generateTableDocs = new JMenuItem("Generate Table Docs " + serverModel.getName());
 			generateTableDocs.setEnabled(sc.isKDB());

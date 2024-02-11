@@ -525,6 +525,7 @@ public class CommonActions implements CommandProvider {
 	 */
 	public Action getAddServerAction() { return addServerAction; }
 	
+	public Action getCloseConnServerAction(ServerConfig sc) { return new CloseConnServerAction(sc); }
 
 	/**
 	 * @return action that shows dialogue to allow adding a {@link ServerConfig}
@@ -609,6 +610,25 @@ public class CommonActions implements CommandProvider {
 		}
 	}
 	
+	/** Close all server connections */
+	private class CloseConnServerAction extends AbstractAction {
+		
+		private static final long serialVersionUID = 1L;
+		private final ServerConfig sc;
+
+		public CloseConnServerAction(ServerConfig sc) {
+			super(Msg.get(Key.CLOSE_CONNECTION), Theme.CIcon.SERVER_LIGHTNING.get());
+			putValue(SHORT_DESCRIPTION,
+					"Close all connections to this database.");
+			this.sc = sc;
+		}
+		
+		@Override public void actionPerformed(ActionEvent arg0) {
+			connectionManager.closePool(sc);
+		}
+	}
+	
+
 	/** Clone a server to the {@link ConnectionManager} */
 	private class CloneServerAction extends AbstractAction {
 		
@@ -633,7 +653,6 @@ public class CommonActions implements CommandProvider {
 		}
 	}
 	
-
 	
 	/**
 	 * @param serverConfig The server that should be removed
