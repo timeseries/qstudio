@@ -221,3 +221,4 @@ Changelog:
 2013-01-25 - 1.21   - Mac UI Improvements (thanks Charlie)
 					
 2013-01-24 - 1.20   - Results Table shows wide tables with scrollbar (thanks Weiyi)
+""  
