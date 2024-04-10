@@ -88,7 +88,7 @@ class FunctionEditingPanel extends JPanel {
 		codeEditor = new JEditorPane();
         JScrollPane scrPane = new JScrollPane(codeEditor);
         scrPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        codeEditor.setContentType("text/sql");
+        codeEditor.setContentType("text/qsql");
 		codeEditor.setText("");
 		codeEditor.setFont(Theme.getCodeFont());
 		codeEditor.addKeyListener(new KeyAdapter() {

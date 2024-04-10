@@ -261,6 +261,9 @@ import com.timestored.theme.Theme;
 			String consoleView = null;
 
 			if(queryWrapped) {
+				if(!(o instanceof Object[])) {
+					throw new KException("replyformat"); // This connects to KError to suggest unwrapping the query.
+				}
 				Object[] ret = (Object[]) o;
 				boolean sizeOK = (Boolean)ret[0];
 				consoleView = new String((char[]) ret[2]);

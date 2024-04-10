@@ -17,7 +17,6 @@
 package com.timestored.qstudio;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.EventQueue;
@@ -174,10 +173,14 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 	 * If called after, you must then call applyEditorConfig on any instances to refresh them.
 	 */
 	public static void setEditorConfig(EditorConfig editorConfig) {
-		Configuration config = DefaultSyntaxKit.getConfig(DefaultSyntaxKit.class);
-		Configuration qconfig = DefaultSyntaxKit.getConfig(QSqlSyntaxKit.class);
-		editorConfig.apply(config);
-		editorConfig.apply(qconfig);
+		editorConfig.apply(DefaultSyntaxKit.getConfig(DefaultSyntaxKit.class));
+		editorConfig.apply(DefaultSyntaxKit.getConfig(QSqlSyntaxKit.class));
+		// Not sure why the below isn't needed but I did test and I tested switching dark/light themes and it all worked.
+//		editorConfig.apply(DefaultSyntaxKit.getConfig(SqlSyntaxKit.class));
+//		editorConfig.apply(DefaultSyntaxKit.getConfig(JavaScriptSyntaxKit.class));
+//		editorConfig.apply(DefaultSyntaxKit.getConfig(BashSyntaxKit.class));
+//		editorConfig.apply(DefaultSyntaxKit.getConfig(DOSBatchSyntaxKit.class));
+//		editorConfig.apply(DefaultSyntaxKit.getConfig(PlainSyntaxKit.class));
 	}
 	
 	/**
@@ -489,7 +492,35 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 	        
 	        String txt = editorPane.getText();
 	        // must add to scrollpane before setting content type to allow line numbers.
-	        editorPane.setContentType("text/qsql");
+	        String end = document.getFileEnding();
+	        switch(end) {
+	        	case "sql":
+	        	case "c":
+	        	case "cpp":
+	        	case "js":
+	        	case "json":
+	        	case "xml":
+	        	case "properties":
+	        	case "lua":
+	        	case "java":
+		        	editorPane.setContentType("text/" + end);
+		        	break;
+	        	default:
+	        		if(end.equals("bat")) {
+	        			editorPane.setContentType("text/dosbatch");
+	        		} else if(end.equals("sh")) {
+	        			editorPane.setContentType("text/bash");
+	        		} else if(end.equals("html") || end.equals("htm") || end.equals("xhtml")) {
+	        			editorPane.setContentType("text/xhtml");
+	        		} else if(end.equals("sh")) {
+	        			editorPane.setContentType("text/bash");	        			
+//					Purposefully not using plain. As it's just so plain.	        		
+//	        		} else if(end.equals("txt") || end.equals("md")) {
+//	        			editorPane.setContentType("text/plain");
+	        		} else {
+	        			editorPane.setContentType("text/qsql");
+	        		}
+	        }
 	        editorPane.setText(txt);
 	        
 	        // tooltips = autocomplete

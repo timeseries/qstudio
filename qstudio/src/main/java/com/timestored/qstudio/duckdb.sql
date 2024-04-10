@@ -55,3 +55,8 @@ SELECT * FROM Cities;
 PIVOT Cities ON Year USING FIRST(Population) as POP,LIST(Population) as P;
 PIVOT Cities on Country, Name USING SUM(Population);
 PIVOT Cities ON Year USING SUM(Population) as total, MAX(Population) as max GROUP BY Country;
+
+/** DUCKDB 0.10.0  -  Fixed length arrays *******************************************************/
+CREATE TABLE vectors(v DOUBLE[3]);
+INSERT INTO vectors VALUES ([1, 2, 3]);
+SELECT array_cross_product(v, [1, 1, 1]) AS result FROM vectors;

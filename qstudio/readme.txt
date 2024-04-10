@@ -9,6 +9,18 @@ ___________________________________________________________________
 
 Changelog:
 
+2023-04-10 - 2.58   - Add highlighting support for  c, cpp, java, bat, sh, html, js, json, xml and properties files.
+
+2023-04-01 - 2.57   - Improved Scatter Chart. Scatter now supports time-series.
+
+2023-03-01 - 2.56   - Better error messaging for torq/deferred or unexpected responses. Improved Pie Chart.
+
+2023-02-11 - 2.55   - Update duckdb to 0.10.0
+
+2023-01-22 - 2.54   - Drivers: Update clickhouse to 0.6.0 and DolhpinDB to 1.30.22.5 drivers.
+
+2023-11-01 - 2.53   - Allow right-click closing connection to servers to allow DuckDB file reuse.
+
 2023-08-10 - 2.51   - Add support for format 2022 license. In preparation for no longer supporting old 2013qs license format.
 
 2023-08-04 - 2.40   - Improve SQL database support. Show server tree for many databases.

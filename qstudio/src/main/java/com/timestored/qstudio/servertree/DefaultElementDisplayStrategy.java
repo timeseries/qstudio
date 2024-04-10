@@ -75,7 +75,7 @@ enum DefaultElementDisplayStrategy
 			        JScrollPane scrPane = new JScrollPane(codeEditor);
 			        scrPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 			        panel.add(scrPane, BorderLayout.CENTER);
-			        codeEditor.setContentType("text/sql");
+			        codeEditor.setContentType("text/qsql");
 					codeEditor.setText(text);
 					codeEditor.setFont(Theme.getCodeFont());
 					codeEditor.setEditable(false);
