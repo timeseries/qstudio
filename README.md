@@ -223,3 +223,4 @@ Changelog:
 2013-01-24 - 1.20   - Results Table shows wide tables with scrollbar (thanks Weiyi)
 ""  
 ""  
+""  
