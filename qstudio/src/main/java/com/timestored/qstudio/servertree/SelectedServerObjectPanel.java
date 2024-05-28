@@ -29,6 +29,7 @@ import com.google.common.base.Preconditions;
 import com.timestored.qstudio.model.AdminModel;
 import com.timestored.qstudio.model.AdminModel.Category;
 import com.timestored.qstudio.model.QEntity;
+import com.timestored.qstudio.model.QueryManager;
 import com.timestored.qstudio.model.ServerModel;
 import com.timestored.qstudio.model.ServerObjectTree;
 import com.timestored.sqldash.chart.ChartTheme;
@@ -44,11 +45,12 @@ public class SelectedServerObjectPanel extends JPanel
 	
 	private static final long serialVersionUID = 1L;
 	private final AdminModel adminModel;
+	private final QueryManager queryManager;
 	private ChartTheme chartTheme;
 	
-	public SelectedServerObjectPanel(AdminModel adminModel) {
-		
+	public SelectedServerObjectPanel(AdminModel adminModel, QueryManager queryManager) {
 		this.adminModel = adminModel;
+		this.queryManager = queryManager;
 		setLayout(new BorderLayout());
 		adminModel.addListener(this);
 		refreshGUI(false);
@@ -66,7 +68,7 @@ public class SelectedServerObjectPanel extends JPanel
 
 		if(adminModel.getSelectedServerName() != null) {
 			if(cat.equals(Category.ELEMENT)) {
-				p = ElementDisplayFactory.getPanel(adminModel, chartTheme);
+				p = ElementDisplayFactory.getPanel(adminModel, queryManager, chartTheme);
 				title = adminModel.getSelectedElement().getName();
 			} else if(cat.equals(Category.NAMESPACE)) {
 				p = getNamespaceListing(adminModel);

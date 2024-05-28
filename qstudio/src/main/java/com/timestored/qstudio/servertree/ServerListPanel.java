@@ -56,6 +56,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.timestored.connections.JdbcIcons;
 import com.timestored.connections.JdbcTypes;
 import com.timestored.connections.ServerConfig;
 import com.timestored.kdb.KdbConnection;
@@ -423,14 +424,16 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 		}
 		
 		@Override public ImageIcon getIcon() {
-			if(serverModel.getServerConfig().getJdbcType().equals(JdbcTypes.DUCKDB)) {
-				return Theme.CIcon.DUCK.get();
+			JdbcTypes jdbcType = serverModel.getServerConfig().getJdbcType();
+			if(JdbcTypes.DUCKDB.equals(jdbcType) || JdbcTypes.BABELDB.equals(jdbcType)) {
+				return serverModel.isConnected() ? Theme.CIcon.DUCK.get() : Theme.CIcon.DUCK_FADED.get();
 			} else if(serverModel.isConnected() && isTreeProblem()) {
 				return Theme.CIcon.SERVER_LIGHTNING.get();
 			} else if(serverModel.getServerConfig().isKDB() && serverModel.isConnected()) {
 				return Theme.CIcon.SERVER.get();
 			} else if (!serverModel.getServerConfig().isKDB() && serverModel.isConnected()){
-				return Theme.CIcon.SERVER_DATABASE.get();
+				JdbcIcons jicon = JdbcIcons.getIconFor(jdbcType);
+				return jicon.get16();
 			} 
 			return Theme.CIcon.SERVER_CONNECT.get();
 		}
@@ -486,7 +489,7 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 					if(savedDocFile == null) {
 						savedDocFile = new File(myDocs, "table-docs.html");
 					}
-					savedDocFile = SwingUtils.askUserSaveLocation("html", savedDocFile);
+					savedDocFile = SwingUtils.askUserSaveLocation(savedDocFile, "html");
 					
 			        if (savedDocFile != null) {
 			            try {
