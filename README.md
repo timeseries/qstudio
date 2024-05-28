@@ -25,7 +25,7 @@ Apache Solr, Apache Ignite, Omnisci, Informix, Sqream, Aurora
  * **Code Completion**
 
  
-### Pivot ad Chart Data Easily
+### Pivot and Chart Data Easily
  
 ![QstudioPivot](qstudio/pivot-sql-query.gif)
 
@@ -39,7 +39,10 @@ Apache Solr, Apache Ignite, Omnisci, Informix, Sqream, Aurora
 ![QstudioAI](qstudio/ai-sql-query.gif)
 
 
-Changelog:
+
+
+
+## Changelog
 
 2023-05-28 - 3.02   - Bugfixes and UI improvements. 
                     - Improve DolphinDB support. 
