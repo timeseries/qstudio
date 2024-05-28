@@ -37,7 +37,6 @@ import javax.swing.ScrollPaneConstants;
 
 import com.timestored.TimeStored;
 import com.timestored.misc.InfoLink;
-import com.timestored.qstudio.BenchmarkPanel;
 import com.timestored.qstudio.QStudioLauncher;
 import com.timestored.qstudio.kdb.KdbTableFactory;
 import com.timestored.qstudio.kdb.SysCommand;
@@ -76,7 +75,6 @@ class ServerDescriptionPanel extends JPanel {
 		
 		tabpane.addTab("Server Info", scrollWrap(serverReportPanel));
 		tabpane.addTab("Configuration", scrollWrap(serverConfigPanel));
-		tabpane.addTab("Benchmark", scrollWrap(new BenchmarkPanel(serverModel)));
 		
 		add(tabpane, BorderLayout.CENTER);
 		

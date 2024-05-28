@@ -18,28 +18,32 @@ package com.timestored.qstudio.servertree;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.Optional;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.sql.rowset.CachedRowSet;
+import javax.swing.Box;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import kx.c.KException;
 
-import com.timestored.connections.JdbcTypes;
 import com.timestored.connections.ServerConfig;
 import com.timestored.cstore.CAtomTypes;
+import com.timestored.qstudio.kdb.KdbTableFactory;
 import com.timestored.qstudio.model.AdminModel;
+import com.timestored.qstudio.model.QueryManager;
 import com.timestored.qstudio.model.ServerQEntity;
 import com.timestored.qstudio.model.ServerQEntity.QQuery;
 import com.timestored.sqldash.chart.ChartTheme;
-import com.timestored.sqldash.chart.DataTableViewStrategy;
-import com.timestored.sqldash.model.ChartWidget;
-import com.timestored.sqldash.model.Queryable;
+import com.timestored.theme.Theme;
 
 /**
  * Build for displaying details about known types. It's important that the type
@@ -50,15 +54,37 @@ class ElementDisplayFactory {
 	
 	private static final Logger LOG = Logger.getLogger(ElementDisplayFactory.class.getName());
 
-	public static Component getPanel(AdminModel adminModel, ChartTheme chartTheme) {
+	private static Box getActionButtons(QueryManager queryManager, List<QQuery> qQueryies) {
+		Box b = Box.createHorizontalBox();
+		for(QQuery qQuery : qQueryies) {
+			if(!qQuery.getTitle().toLowerCase().contains("delete")) {
+				JButton but = new JButton(qQuery.getTitle(), qQuery.getIcon().get16());
+				but.setToolTipText("Run query:\r\n" + qQuery.getQuery());
+				JButton copyBut = new JButton("", Theme.CIcon.EDIT_COPY.get16());
+				copyBut.setToolTipText("Copy query to Clipboard:\r\n" + qQuery.getQuery());
+				but.addActionListener(e -> {
+					queryManager.sendQuery(qQuery.getQuery());
+				});
+				copyBut.addActionListener(e -> {
+					Clipboard clpbrd = Toolkit.getDefaultToolkit().getSystemClipboard();
+					clpbrd.setContents(new StringSelection(qQuery.getQuery()), null);
+				});
+				b.add(copyBut);
+				b.add(but);
+			}
+		}
+		return b;
+	}
+
+	public static Component getPanel(AdminModel adminModel, QueryManager queryManager, ChartTheme chartTheme) {
 		
 		Component retComponent = null;
 		try {
-			retComponent  = getCustomizedEditor(adminModel, chartTheme);
+			retComponent  = getCustomizedEditor(adminModel, queryManager, chartTheme);
 		} catch (KException e) {
-			retComponent = handleException(adminModel, chartTheme);
+			retComponent = handleException(adminModel, queryManager, chartTheme);
 		} catch (IOException e) {
-			retComponent = handleException(adminModel, chartTheme);
+			retComponent = handleException(adminModel, queryManager, chartTheme);
 		}
 	
 		if(retComponent == null) {
@@ -67,13 +93,13 @@ class ElementDisplayFactory {
 		return retComponent;
 	}
 
-	private static Component handleException(AdminModel adminModel, ChartTheme chartTheme) {
+	private static Component handleException(AdminModel adminModel, QueryManager queryManager, ChartTheme chartTheme) {
 
 		Component retComponent = null;
 		// problems = refresh tree and try once more
 		adminModel.refresh();
 		try {
-			retComponent = getCustomizedEditor(adminModel, chartTheme);
+			retComponent = getCustomizedEditor(adminModel, queryManager, chartTheme);
 		} catch (KException e) {
 			LOG.log(Level.WARNING, "error using proposed Element Display Strategy", e);
 			// fall through
@@ -92,20 +118,23 @@ class ElementDisplayFactory {
 		return retComponent;
 	}
 
-	private static Component getCustomizedEditor(AdminModel adminModel, ChartTheme chartTheme) throws IOException,
+	private static Component getCustomizedEditor(AdminModel adminModel, QueryManager queryManager, ChartTheme chartTheme) throws IOException,
 			KException {
 		ServerQEntity elementDetails = adminModel.getSelectedElement();
 		String queryName = elementDetails.getFullName();
 		
 		if(adminModel.getServerModel().getServerConfig().isKDB()) {
 			if (elementDetails.isTable()) {
-					return new PagingTablePanel(adminModel, queryName);
+				JPanel p = new JPanel(new BorderLayout());
+				p.add(getActionButtons(queryManager, elementDetails.getQQueries()), BorderLayout.NORTH);
+				p.add(new PagingTablePanel(adminModel, queryName), BorderLayout.CENTER);
+				return p;
 			
 			} else if(elementDetails.getType().equals(CAtomTypes.LAMBDA)) {
 				return new FunctionEditingPanel(adminModel, queryName);
 			}
 		} else if (elementDetails.isTable()) {
-			return new NonkdbTablePanel(adminModel, elementDetails, chartTheme);
+			return new NonkdbTablePanel(adminModel, queryManager, elementDetails, chartTheme);
 		}
 		return null;
 	}
@@ -113,31 +142,25 @@ class ElementDisplayFactory {
 	private static class NonkdbTablePanel extends JPanel {
 		private static final long serialVersionUID = 1L;
 
-		public NonkdbTablePanel(AdminModel adminModel, ServerQEntity serverEntity, ChartTheme chartTheme) {
+		public NonkdbTablePanel(AdminModel adminModel, QueryManager queryManager, ServerQEntity serverEntity, ChartTheme chartTheme) {
 			setLayout(new BorderLayout());
-			ChartWidget app = new ChartWidget();
-			app.setChartTheme(chartTheme);
-			String qsrv = adminModel.getSelectedServerName();
-			JdbcTypes t = adminModel.getConnectionManager().getServer(qsrv).getJdbcType();
 
 			try {
 				if(serverEntity.getQQueries().size() > 0) {
-					String sqlQuery = serverEntity.getQQueries().get(0).getQuery();
-					CachedRowSet r = adminModel.getConnectionManager().executeQuery(adminModel.getServerModel().getServerConfig(), sqlQuery );
-					Queryable q = new Queryable(qsrv, sqlQuery);
-					app.setQueryable(q);
-					app.setViewStrategy(DataTableViewStrategy.getInstance(true));
-					//  new JScrollPane()
-					JPanel p = app.getPanel();
-					app.tabChanged(q, r);
-					add(p, BorderLayout.CENTER);
-					revalidate();
+					ServerConfig sc = adminModel.getServerModel().getServerConfig();
+					List<QQuery> qQueryies = serverEntity.getQQueries();
+					if(qQueryies.size() > 0) {
+						add(getActionButtons(queryManager, qQueryies), BorderLayout.NORTH);
+						QQuery qQuery = serverEntity.getQQueries().get(0);
+						String sqlQuery = qQuery.getQuery();
+						CachedRowSet r = adminModel.getConnectionManager().executeQuery(sc, sqlQuery );
+						add(KdbTableFactory.getTable(r, 10000), BorderLayout.CENTER);
+						revalidate();
+					}
 				}
 			} catch (SQLException | IOException e) {
 			}
 		}
-
-
 		
 	}
 
