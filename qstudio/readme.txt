@@ -9,6 +9,26 @@ ___________________________________________________________________
 
 Changelog:
 
+
+2023-05-28 - 3.02   - Bugfixes and UI improvements. 
+                    - Improve DolphinDB support. 
+                    - Add PRQL Compilation Support.
+
+2023-05-24 - 3.01   - AI - Generate SQL queries, ask for error help or explanations via OpenAI assistant.
+					- Pivot - Perform excel like pivots within qStudio and have it generate the query for you.
+					- BabelDB - Query any database and store it to a local duckdb instance.  
+					- SQL - support significantly improved. Documentation added, highlighting improved, added code formatter. 
+					- SQL - Added Ctrl+Q run current query support. Lower/uppercase commands.  
+					- Parquet File viewer support.
+					- Generate command line charts using sqlchart command 
+					- Default theme changed to dark mode.  
+					- UI Niceties - Added icons for charts / database types. Safer chart rendering. 
+					- UI Niceties - Document tabs now allow mouse scrolling, added file options to menu. Fixed bugs. 
+					- Remove - Legacy java licensing code.
+					- DuckDB - Improved rendering of the various SQL types.
+
+2023-04-30 - 2.59   - Add ability to export table query result to xlsx file.
+					
 2023-04-10 - 2.58   - Add highlighting support for  c, cpp, java, bat, sh, html, js, json, xml and properties files.
 
 2023-04-01 - 2.57   - Improved Scatter Chart. Scatter now supports time-series.
