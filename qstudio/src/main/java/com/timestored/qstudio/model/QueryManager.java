@@ -26,23 +26,24 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.sql.rowset.CachedRowSet;
 import javax.swing.KeyStroke;
 
 import kx.c.Dict;
 import kx.c.Flip;
 import kx.c.KException;
 import kx.jdbc;
-import lombok.Getter;
 import net.jcip.annotations.ThreadSafe;
 
 import com.google.common.base.Preconditions;
 import com.timestored.command.Command;
 import com.timestored.command.CommandProvider;
 import com.timestored.connections.ConnectionManager;
+import com.timestored.connections.JdbcTypes;
 import com.timestored.connections.ServerConfig;
 import com.timestored.kdb.KdbConnection;
+import com.timestored.misc.PivotProvider;
 import com.timestored.qstudio.BackgroundExecutor;
+import com.timestored.qstudio.PivotFormConfig;
 import com.timestored.qstudio.kdb.KdbHelper;
 import com.timestored.theme.Theme;
 
@@ -52,7 +53,7 @@ import com.timestored.theme.Theme;
  * Watched queries can be added, which when any one standard query is sent, all watched expressions
  * are requeried also.
  */
-@ThreadSafe public class QueryManager implements CommandProvider {
+@ThreadSafe public class QueryManager implements CommandProvider,AutoCloseable {
 	
 	private static final Logger LOG = Logger.getLogger(QueryManager.class.getName());
 
@@ -61,8 +62,9 @@ import com.timestored.theme.Theme;
 	private List<String> serverNames = Collections.emptyList();
 
 	private final ConnectionManager connectionManager;
-	@Getter private String previousQuery = "";
+	private String previousQuery = "";
 	private String previousQueryTitle = null;
+	private PivotFormConfig previousPivotConfig = null;
 	private String selectedServerName;
 	private boolean queryWrapped = true;
 	private boolean connectionPersisted = false;
@@ -103,18 +105,18 @@ import com.timestored.theme.Theme;
 	}
 	
 	public void addQueryListener(QueryListener queryListener) {
-		listeners.add(queryListener);
+		listeners.add(Preconditions.checkNotNull(queryListener));
 	}
 	
 	public void removeQueryListener(QueryListener queryListener) {
-		listeners.remove(queryListener);
+		listeners.remove(Preconditions.checkNotNull(queryListener));
 	}
 	
 	/**
 	 * Send the last query again, refresh all watched expressions, notify listeners.
 	 */
 	public void resendLastQuery() {
-		sendQuery(previousQuery, previousQueryTitle);
+		sendQuery(previousPivotConfig, previousQuery, previousQueryTitle);
 	}
 	
 	/**
@@ -155,6 +157,9 @@ import com.timestored.theme.Theme;
 		sendQuery(query, null);
 	}
 
+	public void sendQuery(final PivotFormConfig pivotConfig, final String query, final String queryTitle) {
+		sendQuery(pivotConfig, query, selectedServerName, queryTitle);
+	}
 	
 	/**
 	 * Send a query to the currently selected server and notify listeners of the result.
@@ -180,7 +185,7 @@ import com.timestored.theme.Theme;
 			BackgroundExecutor.EXECUTOR.execute(new Runnable() {
 				@Override public void run() {
 					try {
-						sendQuery(query, sName, queryTitle);
+						sendQuery(null, query, sName, queryTitle);
 					} finally {
 						synchronized (this) {
 							querying = false;
@@ -200,16 +205,24 @@ import com.timestored.theme.Theme;
 	 * 	null makes this default to actual query.
 	 * @IllegalStateException If no valid server is currently selected
 	 */
-	private void sendQuery(final String query, final String serverName, 
-			final String queryTitle) {
+	private void sendQuery(PivotFormConfig pivotConfig, final String query, final String serverName,  final String queryTitle) {
 
 		synchronized (this) {
 			cancelQuery = false;	
 		}
 		QueryResult qr = null;
-		String title = queryTitle==null ? query : queryTitle;
-
+		String sqlSent = query;
 		ServerConfig sc = connectionManager.getServer(serverName);
+		JdbcTypes jtype = sc.getJdbcType();
+		// We have to let pivot know that the underlying DB is really duckdb so it uses DuckDB pivot
+		if(jtype.equals(JdbcTypes.BABELDB) && sc.getUrl().startsWith("jdbc:babeldb:duckdb:")) {
+			jtype = JdbcTypes.DUCKDB;
+		}
+		if(pivotConfig != null) {
+			sqlSent = PivotProvider.pivotSQL(jtype, pivotConfig.getByColsSelected(), pivotConfig.getPivotColsSelected(), 
+									pivotConfig.getAggSel(), pivotConfig.getSqlQuery());
+		}
+		String title = queryTitle==null ? sqlSent : queryTitle;
 		LOG.info("run() sendingQuery: " + query);
 		for(QueryListener l : listeners) {
 			l.sendingQuery(sc, title);
@@ -217,20 +230,26 @@ import com.timestored.theme.Theme;
 		
 		previousQuery = query;
 		previousQueryTitle = queryTitle;
+		previousPivotConfig = pivotConfig;
+		
+		
 		
 		if(conn==null || !conn.isConnected()) {
 			try {
 				if(sc.isKDB()) {
 					conn = connectionManager.tryKdbConnection(serverName);
 				} else {
-					CachedRowSet crs = connectionManager.executeQuery(sc, query);
-					qr = QueryResult.successfulResult(title, null, crs, "");
+					ResultSet crs = connectionManager.executeQuery(sc, sqlSent);
+					if(pivotConfig != null) {
+						crs = PivotProvider.postProcess(jtype, crs, pivotConfig.getByColsSelected(), pivotConfig.getPivotColsSelected());
+					}
+					qr = QueryResult.successfulResult(sc, title, pivotConfig, null, crs, "");
 					sendQRtoListeners(sc, qr);
 					return;
 				}
 			} catch (Throwable e) {
 				Exception ee = e instanceof Exception ? ((Exception)e) : new IOException(e);
-				qr = QueryResult.exceptionResult(title, ee);
+				qr = QueryResult.exceptionResult(sc, title, pivotConfig, ee);
 				sendQRtoListeners(sc, qr);
 				return;
 			}
@@ -239,7 +258,7 @@ import com.timestored.theme.Theme;
 		Object o = null;
 		// evaluate the query itself
 		try	{
-			String qry = queryWrapPrefix + query + queryWrapPostfix;
+			String qry = queryWrapPrefix + sqlSent + queryWrapPostfix;
 			
 			// wrap call to get console display and protect against large downloads and to add debugging information
 			// wrapped call has list format with two possible layout results:
@@ -295,20 +314,20 @@ import com.timestored.theme.Theme;
 				k = o;
 				consoleView = (k == null ? "" : KdbHelper.asLine(k));
 			}
-			qr = QueryResult.successfulResult(title, k, getRS(k), consoleView);
+			qr = QueryResult.successfulResult(sc, title, pivotConfig, k, getRS(k), consoleView);
 			
 		} catch (KException ex) {
-			qr = QueryResult.exceptionResult(title, ex);
+			qr = QueryResult.exceptionResult(sc, title, pivotConfig, ex);
 		} catch (Exception ex) {
 			synchronized (this) {
 				if(cancelQuery) {
-					qr = QueryResult.cancelledResult(title);
+					qr = QueryResult.cancelledResult(sc, title, pivotConfig);
 				} else {
 					// if our wrapper failed, server could be customized to send anything
 					// e.g. secure server could send text warning.
 					LOG.log(Level.SEVERE, "Server sent some unwrapped unknown result", ex);
 					String s = o!=null ? KdbHelper.asLine(o) : ex.getMessage();
-					qr = QueryResult.exceptionResult(title, new IOException(s));
+					qr = QueryResult.exceptionResult(sc, title, pivotConfig, new IOException(s));
 				}
 			}
 		}
@@ -333,6 +352,13 @@ import com.timestored.theme.Theme;
 
 	}
 
+	@Override public void close() throws Exception {
+		if(conn != null) {
+			conn.close();
+			conn = null;		
+		}
+	}
+	
 	public void sendQRtoListeners(ServerConfig sc, QueryResult qr) {
 		LOG.info("queryResultReturned: " + qr);
 		for(QueryListener l : listeners) {
@@ -345,7 +371,7 @@ import com.timestored.theme.Theme;
 	}
 
 	/** Return RS for kdb object if possible, otherwise null **/
-	private static ResultSet getRS(Object k) {
+	public static ResultSet getRS(Object k) {
 		ResultSet rs = null;
 		try {
 			// check its a format supported by jdbc driver for RS conversion
@@ -617,4 +643,8 @@ import com.timestored.theme.Theme;
 	}
 
 	public int getCommercialDBqueries() { return commercialDBqueries; }
+
+	public boolean hasAnyServers() {
+		return !getServerNames().isEmpty();
+	}
 }

@@ -18,9 +18,13 @@ package com.timestored.qstudio.model;
 
 import java.util.List;
 
+import javax.swing.ImageIcon;
+
 import com.google.common.base.Objects;
 import com.timestored.cstore.CAtomTypes;
+import com.timestored.qdoc.DocumentedEntity;
 import com.timestored.theme.Icon;
+import com.timestored.theme.Theme;
 
 /**
  * A single q entity that exists on the server who's type/count etc is known.
@@ -83,6 +87,17 @@ public interface ServerQEntity extends QEntity {
 						&& Objects.equal(this.title, that.title);
 			}
 			return false;
+		}
+		
+		public DocumentedEntity toDocumentedEntity() {
+			return new DocumentedEntity() {
+				@Override public String getDocName() { return query; }
+				@Override public String getHtmlDoc(boolean shortFormat) { return query; }
+				@Override public SourceType getSourceType() { return SourceType.SERVER; }
+				@Override public String getFullName() { return query; }
+				@Override public String getSource() { return "sql"; }
+				@Override public ImageIcon getIcon() { return Theme.CIcon.SCRIPT_GO.get16(); }
+			};
 		}
 	}
 }

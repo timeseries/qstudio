@@ -85,7 +85,6 @@ abstract class BaseSQE implements ServerQEntity {
 	@Override public List<QQuery> getQQueries() {
 		List<QQuery> r = Lists.newArrayList();
 		r.add(new QQuery("Delete", CIcon.DELETE, "delete "+getName()+" from `"+getNamespace()));
-		r.add(new QQuery("Count", null, "count " + getFullName()));
 		return r;
 	}
 

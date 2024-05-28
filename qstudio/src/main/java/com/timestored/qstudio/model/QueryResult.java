@@ -17,12 +17,20 @@
 package com.timestored.qstudio.model;
 
 import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import javax.sql.RowSet;
 
 import kx.c;
 import kx.c.KException;
+import lombok.Getter;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.timestored.babeldb.DBHelper;
+import com.timestored.connections.ServerConfig;
+import com.timestored.kdb.QueryResultI;
+import com.timestored.qstudio.PivotFormConfig;
 
 /**
  * Immutable data container to hold result of user ending a KDB query.
@@ -34,38 +42,41 @@ import com.google.common.base.Preconditions;
  *  A cancel query may or may not contain an actual result.
  * 
  */
-public class QueryResult {
-
+public class QueryResult implements QueryResultI {
+	
+	@Getter private final PivotFormConfig pivotConfig;
+	@Getter private final ServerConfig serverConfig;
 	public final String query;
-	public final Object k;
+	@Getter public final Object k;
 	public final ResultSet rs;
-	public final Exception e;
+	public RowSet rowSet = null;
+	@Getter public final Exception e;
 	private final String consoleView;
 	private final Type type;
 	
 	enum Type { Exception, Cancel, Success };
 
 	
-	public static QueryResult exceptionResult(String query, Exception e) {
+	public static QueryResult exceptionResult(ServerConfig serverConfig, String query, PivotFormConfig pivotConfig, Exception e) {
 		String cView = (e!=null ? e.getMessage() : "exception");
-		return new QueryResult(query, null, null, cView, e, false);
+		return new QueryResult(serverConfig, query, pivotConfig, null, null, cView, e, false);
 	}
 
-	public static QueryResult cancelledResult(String query) {
+	public static QueryResult cancelledResult(ServerConfig serverConfig, String query, PivotFormConfig pivotConfig) {
 		String cView = "Query Cancelled";
-		return new QueryResult(query, null, null, cView, null, true);
+		return new QueryResult(serverConfig, query, pivotConfig, null, null, cView, null, true);
 	}
 
-	public static QueryResult successfulResult(String query, Object k, 
+	public static QueryResult successfulResult(ServerConfig serverConfig, String query, PivotFormConfig pivotConfig, Object k, 
 			ResultSet rs, String consoleView) {
-		return new QueryResult(query, k, rs, consoleView, null, false);
+		return new QueryResult(serverConfig, query, pivotConfig, k, rs, consoleView, null, false);
 	}
 	
 	public boolean isCancelled() { return type.equals(Type.Cancel);	}
 	public boolean isException() { return type.equals(Type.Exception);	}
 	
 	
-	private QueryResult(String query, Object k, ResultSet rs, 
+	private QueryResult(ServerConfig serverConfig, String query, PivotFormConfig pivotConfig, Object k, ResultSet rs, 
 			String consoleView, Exception e, boolean cancelled) {
 		
 		if(cancelled) {
@@ -76,7 +87,9 @@ public class QueryResult {
 			type = Type.Success;
 		}
 		
+		this.serverConfig = Preconditions.checkNotNull(serverConfig);
 		this.query = Preconditions.checkNotNull(query);
+		this.pivotConfig = pivotConfig;
 		this.k = k;
 		this.rs = rs;
 		this.e = e;
@@ -119,6 +132,33 @@ public class QueryResult {
 				.add("wasResult", k!=null)
 				.add("wasException", e!=null)
 			.toString();
+	}
+
+	@Override public void close() throws Exception {
+		if(rowSet != null) {
+			rowSet.close();
+			rowSet = null;
+		}
+	}
+
+	/**
+	 * Implements QueryResultI and provides cached rowset to allow using Bable in both Pulse and qStudio
+	 * babel can't be trusted to go through RS once only.
+	 */
+	@Override public RowSet getRs() { 
+		try {
+			if(rowSet == null) {
+				rowSet = DBHelper.toCRS(rs); 
+			}
+			return rowSet;
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	@Override public boolean isExceededMax() {
+		return false;
 	}
 	
 }

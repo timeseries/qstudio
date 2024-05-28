@@ -297,6 +297,13 @@ public class AdminModel implements ConnectionManager.Listener,DocSource {
 		for(Listener l : listeners) {
 			l.selectionChanged(serverModel,	selectedCategory, selectedNamespace, selectedElement);
 		}
+		if(selectedElement instanceof TableSQE) {
+			TableSQE te = (TableSQE) selectedElement;
+			// Slightly unsafe assumption that if count is <1000 we can render the limited select and allow pivot.
+			if(te.getQQueries().size() > 0 && te.getCount() <= 1000 && te.getCount() > 0) {
+				queryManager.sendQuery(te.getQQueries().get(0).getQuery());
+			}
+		}
 		LOG.info("selectedServerNsCatElem " + selectedServerName
 				 + "-> " + selectedNamespace
 				 + "-> " + selectedCategory

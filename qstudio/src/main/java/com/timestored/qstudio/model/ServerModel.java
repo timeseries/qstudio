@@ -22,8 +22,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import kx.c.KException;
-
 import com.google.common.base.MoreObjects;
 import com.timestored.connections.ConnectionManager;
 import com.timestored.connections.ServerConfig;
@@ -107,34 +105,9 @@ public class ServerModel {
 		return serverConfig;
 	}
 	
-	/** 
-	 * Run a set of benchmark tests on this server and return the results.
-	 * @return Results of running benchmark on server.
-	 * @throws IOException If trouble running the benchmark on the server.
-	 */
-	public BenchmarkReport runBenchmark() throws IOException {
-		
-		KdbConnection kdbConnection = connectionManager.getKdbConnection(serverConfig);
-		if(kdbConnection!= null) {
-			try {
-				return new BenchmarkReport(kdbConnection);
-			} catch (KException e) {
-				throw new IOException(e);
-			} finally {
-				try {
-					kdbConnection.close();
-				} catch (IOException e) {
-					LOG.log(Level.WARNING, "problem closing kdb connection", e);
-				}
-			}
-		}
-		throw new IOException("Could not get connection");
-	}
-	
 	public void addListener(Listener listener) {
 		listeners.add(listener);
 	}
-	
 	
 	public boolean isConnected() {
 		return connectionManager.isConnected(serverConfig);

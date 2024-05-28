@@ -17,7 +17,7 @@
 package com.timestored.qstudio.model;
 
 import java.io.IOException;
-import java.sql.SQLException;
+import static com.google.common.collect.Iterables.filter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,6 +43,7 @@ import lombok.NonNull;
 import com.google.common.base.Joiner;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.timestored.connections.ConnectionManager;
@@ -51,7 +52,9 @@ import com.timestored.connections.MetaInfo.ColumnInfo;
 import com.timestored.connections.ServerConfig;
 import com.timestored.cstore.CAtomTypes;
 import com.timestored.kdb.KdbConnection;
+import com.timestored.qdoc.DocumentedEntity;
 import com.timestored.qstudio.QStudioLauncher;
+import com.timestored.qstudio.model.ServerQEntity.QQuery;
 
 /**
  * Provides programmatic access to a java representation of the objects 
@@ -282,6 +285,20 @@ public class ServerObjectTree {
 			}
 		}
 		return entities;
+	}
+
+	public List<? extends DocumentedEntity> getAllDocumentationEntities(Predicate<DocumentedEntity> filter) {
+		List<DocumentedEntity> docs = new ArrayList<>();
+		
+		Iterable<ServerQEntity> entities = filter == null ? getAll() : filter(getAll(), filter);
+		entities.forEach(docs::add);
+		
+		for(ServerQEntity se : entities) {
+			for(QQuery qq : se.getQQueries()) {
+				docs.add(qq.toDocumentedEntity());
+			}
+		}
+		return docs;
 	}
 
 	/** @return List of all elements contained in selected namespace */
