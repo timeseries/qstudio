@@ -42,7 +42,7 @@ import com.timestored.theme.Theme;
 /**
  * Displays tables as pa
  */
-class PagingTablePanel extends JPanel {
+public class PagingTablePanel extends JPanel {
 
 	private static final Logger LOG = Logger.getLogger(PagingTablePanel.class.getName());
 	private static final long serialVersionUID = 1L;
@@ -53,7 +53,7 @@ class PagingTablePanel extends JPanel {
 			"$[count y; .Q.ind[y;`long$x[0] + til min (count y),x[1]]; select from y]; " +
 			"sublist[`int$x;y]]}";
 
-	private final long rowsShown = 200;
+	private static long ROWS_SHOWN = 10_000;
 	private long offset = 0;
 	private long count;
 	
@@ -85,21 +85,21 @@ class PagingTablePanel extends JPanel {
 		prevButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				refreshToShow(offset - rowsShown);
+				refreshToShow(offset - ROWS_SHOWN);
 			}
 		});
 		nextButton = new JButton(">");
 		nextButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				refreshToShow(offset + rowsShown);
+				refreshToShow(offset + ROWS_SHOWN);
 			}
 		});
 		lastButton = new JButton(">>");
 		lastButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				PagingTablePanel.this.refreshToShow(count - rowsShown);
+				PagingTablePanel.this.refreshToShow(count - ROWS_SHOWN);
 			}
 		});
 		positionLabel = new JLabel();
@@ -109,7 +109,7 @@ class PagingTablePanel extends JPanel {
 		lastButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				PagingTablePanel.this.refreshToShow(count - rowsShown);
+				PagingTablePanel.this.refreshToShow(count - ROWS_SHOWN);
 			}
 		});
 
@@ -132,6 +132,10 @@ class PagingTablePanel extends JPanel {
 		refreshToShow(offset);
 	}
 	
+	public static void setMaximumRowsShown(long maxRows) {
+		ROWS_SHOWN = maxRows;
+	}
+	
 	public static String getTableQuery(String tableName, long offset, long rowsShown) {
 
 		String query = "(count " +tableName + ";" + SUBBLIST_Q + 
@@ -150,7 +154,7 @@ class PagingTablePanel extends JPanel {
 
 		this.offset = offset;
 		// perform necessary query
-		String query = getTableQuery(queryName, offset, rowsShown);
+		String query = getTableQuery(queryName, offset, ROWS_SHOWN);
 		
 		kdbConnection = adminModel.getKdbConnection();
 		boolean prevPossible = false;
@@ -165,10 +169,10 @@ class PagingTablePanel extends JPanel {
 
 				// configure controls
 				prevPossible = (offset>0);
-				nextPossible = ((offset+rowsShown) < count);
+				nextPossible = ((offset+ROWS_SHOWN) < count);
 				
 				// table of results, update view
-				long np = (offset + rowsShown);
+				long np = (offset + ROWS_SHOWN);
 				posText = offset + "-" + ((np > count) ? count :  np)+ " of " + count;
 				
 				sp = KdbTableFactory.getJXTable(resArray[1]);
