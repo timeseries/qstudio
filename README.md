@@ -12,7 +12,7 @@ kdb+, mySQL, QuestDB, PostgreSQL, Redis
 TimeScale, Microsoft SQL Server, H2 Database, DuckDB, Oracle
 TDengine, DolphinDB, Clickhouse, MongoDB, Druid, InfluxDB
 Derby, HSQLDB, SQLite, CSV, MS Access, JDBC
-Apache Calcite Avatica, Snowflake, Elastic Search, MariaDB, Apache Kylin, DB2
+Apache Calcite Avatica, Snowflake, Elastic Search, MariaDB, Apache Kylin, DB2, 
 Teradata, CrateDB, NuoDB, SAP HANA, Gemfire XD, Snappy Data Tibco
 Spark Hive, Kyubi Hive, Yandex Clickhouse, Neo4J, Presto, Trino
 Apache Solr, Apache Ignite, Omnisci, Informix, Sqream, Aurora
