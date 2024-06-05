@@ -38,31 +38,10 @@ Apache Solr, Apache Ignite, Omnisci, Informix, Sqream, Aurora
 
 ![QstudioAI](qstudio/ai-sql-query.gif)
 
+## Current Status
 
+Check out the [CHANGELOG.md](./CHANGELOG.md) file for the latest information.
 
+## Troubleshooting qStudio
 
-
-## Changelog
-
-2024-05-28 - 3.02   - Bugfixes and UI improvements. 
-                    - Improve DolphinDB support. 
-                    - Add PRQL Compilation Support.
-
-2024-05-24 - 3.01   - AI - Generate SQL queries, ask for error help or explanations via OpenAI assistant.
-					- Pivot - Perform excel like pivots within qStudio and have it generate the query for you.
-					- BabelDB - Query any database and store it to a local duckdb instance.  
-					- SQL - support significantly improved. Documentation added, highlighting improved, added code formatter. 
-					- SQL - Added Ctrl+Q run current query support. Lower/uppercase commands.  
-					- Parquet File viewer support.
-					- Generate command line charts using sqlchart command 
-					- Default theme changed to dark mode.  
-					- UI Niceties - Added icons for charts / database types. Safer chart rendering. 
-					- UI Niceties - Document tabs now allow mouse scrolling, added file options to menu. Fixed bugs. 
-					- Remove - Legacy java licensing code.
-					- DuckDB - Improved rendering of the various SQL types.
-
-.....
-
-2023-02-24 - 2.01   Version 2.0 
-					
-2013-01-24 - 1.20   - FIRST RELEASE.
+Check the [Troubleshooting](./TROUBLESHOOTING.md) for more information.
