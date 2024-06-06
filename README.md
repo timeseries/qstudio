@@ -44,11 +44,11 @@ Apache Solr, Apache Ignite, Omnisci, Informix, Sqream, Aurora
 
 ## Changelog
 
-2023-05-28 - 3.02   - Bugfixes and UI improvements. 
+2024-05-28 - 3.02   - Bugfixes and UI improvements. 
                     - Improve DolphinDB support. 
                     - Add PRQL Compilation Support.
 
-2023-05-24 - 3.01   - AI - Generate SQL queries, ask for error help or explanations via OpenAI assistant.
+2024-05-24 - 3.01   - AI - Generate SQL queries, ask for error help or explanations via OpenAI assistant.
 					- Pivot - Perform excel like pivots within qStudio and have it generate the query for you.
 					- BabelDB - Query any database and store it to a local duckdb instance.  
 					- SQL - support significantly improved. Documentation added, highlighting improved, added code formatter. 
