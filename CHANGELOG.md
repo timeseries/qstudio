@@ -2,7 +2,8 @@
 
 **qStudio is a SQL GUI** that lets you browse tables,
 run SQL scripts, and chart and export the results. 
-qStudio works on every operating system, with every database including mysql, postgresql, mssql, kdb.... 
+qStudio works on every operating system,
+with every database including mysql, postgresql, mssql, kdb.... 
 For more info see:
 [timestored.com/qstudio](https://timestored.com/qstudio)
 
@@ -11,10 +12,28 @@ This file lists the changes that have occurred in the project:
 ## Unreleased 
 
 - Progress toward open-sourcing qStudio
+
+## 3.06 - 2024-06-05 
+- Add Redshift support.
+- DuckDB 1.0.
+- Restore window size on restart.
 - Drag and drop of files into qStudio
 - UI and User Experience improvements
 - Improved logging of environment information
 - Improve connection to SQLite on macOS
+
+## 3.05 - 2023-06-03 
+- copy-paste bugfix.
+
+## 3.04 - 2023-05-30 
+- File->Open handles sqlite/duckdb better. 
+- DolphinDB = v3 driver.
+
+## 3.03 - 2023-05-30
+
+- Improve DolphinDB support.
+- Add auto-complete, documentation etc. 
+- PRQL Mac bugfix.
 
 ## 3.02 - 2024-05-28   
 - Bugfixes and UI improvements. 
