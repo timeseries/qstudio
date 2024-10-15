@@ -2,9 +2,15 @@
 
 ![Qstudio](qstudio/qstudio.png)
 
-**qStudio is a free SQL GUI**, it allows running SQL scripts, easy browsing of tables, charting and exporting of results. 
-It works on every operating system, with every database including mysql, postgresql, mssql, kdb.... 
+**qStudio is a free SQL GUI** that lets you browse tables,
+run SQL scripts, and chart and export the results.
+qStudio runs on Windows, macOS and Linux, and works with
+every popular database including mysql, postgresql, mssql, kdb…
 For more info see [timestored.com/qstudio](http://timestored.com/qstudio "timestored.com/qstudio")
+
+## Runs on everything
+
+Windows, macOS, Linux
 
 ## Suports Every Database
 
