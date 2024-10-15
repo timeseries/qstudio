@@ -16,21 +16,28 @@ The terminal session displays a lot of logging information.
    java -jar qstudio.jar
    ```
    
-4. The `prqlc` binary must be installed and available to qStudio.
-  * On macOS, the easiest way to install `prqlc` is with
+4. qStudio also saves a log of its operations in a _qstudio_ directory
+  in the user's home directory.
+
+5. The `prqlc` binary must be installed and available to qStudio.
+  * **On macOS**, the easiest way to install `prqlc` is with
   the [Homebrew package manager](https://brew.sh/).
   It will install the current binary and make it available on the PATH.
   (Homebrew is a terrific tool because it does not
   require any superuser permissions,
   and saves all its files in a few well-known directories.)
-  * On macOS, the operating system will refuse to run qStudio when
+  Test the installation by typing `prqlc --version`.
+  * **On Windows**, the easiest way to install `prqlc` is to use
+  [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
+  Use `winget install prqlc`.
+  You may need to open a new terminal window before testing with `prqlc --version`.
+ 
+6. **First run:**
+  On macOS, the operating system will refuse to run qStudio when
   you double-click its icon in the Finder.
   To solve this, open **System Preferences -> Security & Privacy**.
   There will likely be a message to the effect, "qStudio is from
   an untrusted developer...".
   Click "Open anyway..." and confirm that you want to run the program.
-  * Alternatively, use `java -jar qstudio.jar` as described above.  
-  * On Windows, the easiest way to install `prqlc` is to use
-  [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
-  Use `winget install prqlc`.
-  You may need to open a new terminal window beore testing with `prqlc --version`.
+  Alternatively, use `java -jar qstudio.jar` as described above.  
+  
