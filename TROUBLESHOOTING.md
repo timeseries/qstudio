@@ -23,3 +23,14 @@ The terminal session displays a lot of logging information.
   (Homebrew is a terrific tool because it does not
   require any superuser permissions,
   and saves all its files in a few well-known directories.)
+  * On macOS, the operating system will refuse to run qStudio when
+  you double-click its icon in the Finder.
+  To solve this, open **System Preferences -> Security & Privacy**.
+  There will likely be a message to the effect, "qStudio is from
+  an untrusted developer...".
+  Click "Open anyway..." and confirm that you want to run the program.
+  * Alternatively, use `java -jar qstudio.jar` as described above.  
+  * On Windows, the easiest way to install `prqlc` is to use
+  [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
+  Use `winget install prqlc`.
+  You may need to open a new terminal window beore testing with `prqlc --version`.
