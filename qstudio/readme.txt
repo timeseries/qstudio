@@ -9,12 +9,42 @@ ___________________________________________________________________
 
 Changelog:
 
+2024-11-18 - 4.01   - SQL Notebooks official launch version. 
 
-2023-05-28 - 3.02   - Bugfixes and UI improvements. 
-                    - Improve DolphinDB support. 
+2024-11-12 - 3.86   - Improved Welcome and code examples. Improved display of kdb+ lists as table. bugfix: chartpanel size.
+
+2024-11-08 - 3.85   - Add update reminder. Remove expression watcher, splash screen. Faster startup.
+
+2024-11-01 - 3.84   - Improved auto-complete of multiple languages. Move all kdb+ code to one area.
+
+2024-10-25 - 3.83   - Remove Legacy SQLDashboards. Update notebooks. Merge to one java project.
+
+2024-10-21 - 3.82   - (SqlNotebooks) - Add Page select dropdown menu when on small screen. Add basic markdown/select-table autocomplete.
+
+2024-10-18 - 3.81   - (SqlNotebooks) - Add light/dark mode. Improved quote handling. Add top menu. Add demos.
+
+2024-10-14 - 3.80   - (SqlNotebooks) - Allow users to create SQL notebooks based on markdown and HTML.
+					- File tree panel significantly improved. Now opens text files in qStudio, binary files e.g. jpeg using OS.
+					- 10x faster to open OS clicked files in existing qStudio.
+					- Bugfix: Closing doc out of sync bug. 
+
+2024-09-14 - 3.10   - Bugfix: Fix custom server border color.
+
+2024-09-13 - 3.07   - Upgrade DuckDB to v1.1.0. Add server search to toolbar. 
+
+2024-06-05 - 3.06   - Add Redshift support.
+					- DuckDB 1.0. Restore window size on restart. 
+					
+2024-06-03 - 3.05   - Copy-paste bugfix.
+
+2024-05-30 - 3.04   - File->Open handles sqlite/duckdb better. DolphinDB = v3 driver.
+
+2024-05-30 - 3.03   - Improve DolphinDB support. Add auto-complete, documentation etc. PRQL Mac bugfix.
+
+2024-05-28 - 3.02   - Bugfixes and UI improvements. 
                     - Add PRQL Compilation Support.
 
-2023-05-24 - 3.01   - AI - Generate SQL queries, ask for error help or explanations via OpenAI assistant.
+2024-05-24 - 3.01   - AI - Generate SQL queries, ask for error help or explanations via OpenAI assistant.
 					- Pivot - Perform excel like pivots within qStudio and have it generate the query for you.
 					- BabelDB - Query any database and store it to a local duckdb instance.  
 					- SQL - support significantly improved. Documentation added, highlighting improved, added code formatter. 
@@ -27,17 +57,17 @@ Changelog:
 					- Remove - Legacy java licensing code.
 					- DuckDB - Improved rendering of the various SQL types.
 
-2023-04-30 - 2.59   - Add ability to export table query result to xlsx file.
-					
-2023-04-10 - 2.58   - Add highlighting support for  c, cpp, java, bat, sh, html, js, json, xml and properties files.
+2024-04-30 - 2.59   - Add ability to export table query result to xlsx file.
 
-2023-04-01 - 2.57   - Improved Scatter Chart. Scatter now supports time-series.
+2024-04-10 - 2.58   - Add highlighting support for  c, cpp, java, bat, sh, html, js, json, xml, PRQL and properties files.
 
-2023-03-01 - 2.56   - Better error messaging for torq/deferred or unexpected responses. Improved Pie Chart.
+2024-04-01 - 2.57   - Improved Scatter Chart. Scatter now supports time-series.
 
-2023-02-11 - 2.55   - Update duckdb to 0.10.0
+2024-03-01 - 2.56   - Better error messaging for torq/deferred or unexpected responses. Improved Pie Chart.
 
-2023-01-22 - 2.54   - Drivers: Update clickhouse to 0.6.0 and DolhpinDB to 1.30.22.5 drivers.
+2024-02-11 - 2.55   - Update duckdb to 0.10.0
+
+2024-01-22 - 2.54   - Drivers: Update clickhouse to 0.6.0 and DolhpinDB to 1.30.22.5 drivers.
 
 2023-11-01 - 2.53   - Allow right-click closing connection to servers to allow DuckDB file reuse.
 
