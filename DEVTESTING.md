@@ -45,10 +45,16 @@ These tests would be ran on all platforms Mac / Windows / Linux.
 17. Servers - Delete some servers. Restart qStudio. 
 18. Multi_Instance - Start multiple qStudios, add one server in each. Try overlap.
    
+### Notebooks
+
+ 19. Start Notebook with no sqlnotebook folder defined. Is example created ok for kdb+.
+ 20. Is example created ok for non-kdb.
+ 21. Modify existng workbook.
+ 22. Inspect all existing charts, are they showing.
+ 23. Add new page.
+
 ### Extra
 
-1. DuckDB - Open example duckdb file and run all code. Check table results and charting.
-2. Parquet - Download and double click on parquet file https://www.timestored.com/data/sample/parquet
-3. AI - Generate queries using AI
-4. AI - Write SQL error and ask AI to explain. 
-5. KDB - Check display of custom types - dict, nested lists, every data type.
+ 24. Parquet - Download and double click on parquet file https://www.timestored.com/data/sample/parquet
+ 25. KDB - Check display of custom types - dict, nested lists, every data type.
+
