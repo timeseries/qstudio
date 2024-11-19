@@ -27,11 +27,11 @@ import com.timestored.TimeStored;
 import com.timestored.command.Command;
 import com.timestored.command.CommandProvider;
 import com.timestored.misc.HtmlUtils;
+import com.timestored.qdoc.BuiltinDocumentedEntities;
 import com.timestored.qdoc.DocumentationDialog;
 import com.timestored.qdoc.DocumentedEntity;
 import com.timestored.qdoc.DocumentedEntityDocCommand;
 import com.timestored.qdoc.DocumentedMatcher;
-import com.timestored.qstudio.kdb.BuiltinDocumentedEntities;
 import com.timestored.theme.Theme;
 
 /**

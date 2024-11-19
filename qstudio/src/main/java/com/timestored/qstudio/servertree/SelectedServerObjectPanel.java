@@ -20,12 +20,16 @@ import static com.timestored.theme.Theme.CENTRE_BORDER;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
+import com.timestored.connections.JdbcTypes;
 import com.timestored.qstudio.model.AdminModel;
 import com.timestored.qstudio.model.AdminModel.Category;
 import com.timestored.qstudio.model.QEntity;
@@ -40,13 +44,28 @@ import com.timestored.theme.Theme;
  * in most appropriate way possible e.g. table for tables, text area for functions.
  * May also allow editing.
  */
-public class SelectedServerObjectPanel extends JPanel 
-	implements AdminModel.Listener {
+public class SelectedServerObjectPanel extends JPanel implements AdminModel.Listener {
 	
 	private static final long serialVersionUID = 1L;
 	private final AdminModel adminModel;
 	private final QueryManager queryManager;
 	private ChartTheme chartTheme;
+	private static Map<JdbcTypes,Function<ServerModel,JPanel>> jdbcTypeToDescriptionPanel = new HashMap<>();
+	
+	public static void registerServerDescriptionPanelSupplier(JdbcTypes jdbcType, Function<ServerModel,JPanel> provider) {
+		Preconditions.checkNotNull(jdbcType);
+		jdbcTypeToDescriptionPanel.put(jdbcType, provider);
+	}
+	
+	public static JPanel getServerDescriptionPanel(ServerModel serverModel) {
+		if(serverModel != null) {
+			Function<ServerModel, JPanel> panelSupplier = jdbcTypeToDescriptionPanel.get(serverModel.getServerConfig().getJdbcType());
+			if(panelSupplier != null) {
+				return panelSupplier.apply(serverModel);
+			}
+		}
+		return new JPanel(new BorderLayout());
+	}
 	
 	public SelectedServerObjectPanel(AdminModel adminModel, QueryManager queryManager) {
 		this.adminModel = adminModel;
@@ -74,10 +93,7 @@ public class SelectedServerObjectPanel extends JPanel
 				p = getNamespaceListing(adminModel);
 				title = adminModel.getSelectedNamespace();
 			} else {
-				ServerModel serverModel = adminModel.getServerModel();
-				if(serverModel != null) {
-					p = new ServerDescriptionPanel(serverModel);	
-				}
+				p = getServerDescriptionPanel(adminModel.getServerModel());
 			}
 		}
 		

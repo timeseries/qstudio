@@ -17,31 +17,37 @@
 package com.timestored.qstudio;
 
 import java.awt.BorderLayout;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URLEncoder;
 import java.util.Random;
 
+import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
 import com.google.common.base.Preconditions;
 import com.timestored.StringUtils;
+import com.timestored.TimeStored;
 import com.timestored.connections.ServerConfig;
+import com.timestored.jgrowl.Growler;
+import com.timestored.misc.HtmlUtils;
 import com.timestored.qstudio.model.QueryAdapter;
 import com.timestored.qstudio.model.QueryManager;
 import com.timestored.qstudio.model.QueryResult;
 import com.timestored.sqldash.ChartControlPanel;
+import com.timestored.sqldash.ChartWidget;
+import com.timestored.sqldash.Queryable;
 import com.timestored.sqldash.chart.ChartTheme;
-import com.timestored.sqldash.chart.ViewStrategyFactory;
-import com.timestored.sqldash.model.ChartWidget;
-import com.timestored.sqldash.model.Queryable;
 import com.timestored.swingxx.SwingUtils;
+import com.timestored.theme.Icon;
 import com.timestored.theme.Theme;
+import com.timestored.theme.Theme.InputLabeller;
 
 /**
  * Display chart and control panel that allows configuring chart.
@@ -51,15 +57,14 @@ class ChartResultPanel extends JPanel implements GrabableContainer {
 	private static final long serialVersionUID = 1L;
 	private static final int PADDING = 10;
 	private ChartWidget app;
-	private final QStudioFrame qstudioFrame;
+	private final Growler growler;
     final Random R = new Random();
 
 	private QueryResult latestQueryResult;
 	private ExportPanel exportPanel;
 
-	public ChartResultPanel(final QueryManager adminModel, QStudioFrame qstudioFrame) {
-		
-		this.qstudioFrame = qstudioFrame;
+	public ChartResultPanel(final QueryManager adminModel, Growler growler) {
+		this.growler = Preconditions.checkNotNull(growler);
 		
 		app = new ChartWidget();
 		
@@ -69,16 +74,6 @@ class ChartResultPanel extends JPanel implements GrabableContainer {
 			@Override public void sendingQuery(ServerConfig sc, String query) {}
 
 			@Override public void queryResultReturned(ServerConfig sc, QueryResult qr) {
-
-				// Really annoying but they haven't paid
-        		if(qr.k != null && !QLicenser.isPermissioned(QLicenser.Section.UI_NICETIES) && R.nextInt(10) > 7) {
-        			exportPanel = null;
-        			removeAll();
-        	        add(KDBResultPanel.getAdvert(true), BorderLayout.CENTER);
-        	        repaint();
-        	        return;
-        		}
-        		
 				if(exportPanel == null) {
 					resetContent();
 				}
@@ -103,8 +98,10 @@ class ChartResultPanel extends JPanel implements GrabableContainer {
 			}
 			
 		});
-
-        add(KDBResultPanel.getAdvert(false), BorderLayout.CENTER);
+		
+		if(adminModel.hasAnyServers()) {
+			add(UpdateHelper.getNewsPanel(null), BorderLayout.CENTER);
+		}
 	}
 
 	public void setChartTheme(ChartTheme chartTheme) {
@@ -117,7 +114,7 @@ class ChartResultPanel extends JPanel implements GrabableContainer {
 		removeAll();
 		JPanel configPanel = Theme.getVerticalBoxPanel();
 		configPanel.add(new ChartControlPanel(app));
-		exportPanel = new ExportPanel();
+		exportPanel = new ExportPanel(growler);
 		exportPanel.setEnabled(false);
 		configPanel.add(exportPanel);
 		
@@ -134,55 +131,71 @@ class ChartResultPanel extends JPanel implements GrabableContainer {
 
 		private static final long serialVersionUID = 1L;
 		private final JButton popoutButton;
-		private JButton exportButton;
+//		private final JButton exportButton;
+		private final JButton copyMarkdownButton;
+		private final JButton configureButton;
 
 		@Override public void setEnabled(boolean enabled) {
 			popoutButton.setEnabled(enabled);
-			exportButton.setEnabled(enabled);
+			copyMarkdownButton.setEnabled(enabled);
+			configureButton.setEnabled(enabled);
 			super.setEnabled(enabled);
 		}
 		
-		public ExportPanel() {
+		public ExportPanel(Growler growler) {
 			
-//			exportButton = new JButton("Export to sqlDashboards", Theme.CIcon.SQLDASH_LOGO.get16());
+			configureButton = new JButton("Configure Appearance", Theme.CIcon.LAYOUT_EDIT.get16());
+			configureButton.addActionListener(new ActionListener() {
+				@Override public void actionPerformed(ActionEvent e) {
+					HtmlUtils.browse(TimeStored.Page.QSTUDIO_HELP_CHARTCONFIG.url());
+				}
+			});
+//
+//			exportButton = new JButton("Export to Pulse", Theme.CIcon.SQLDASH_LOGO.get16());
 //			exportButton.addActionListener(new ActionListener() {
 //				
 //				@Override public void actionPerformed(ActionEvent e) {
-//					SqlDashFrame dbvisFrame = qstudioFrame.showLatestDbVisFrame();
-//					AppModel appModel = dbvisFrame.getAppModel();
-//					if(appModel.getSelectedDesktopModel()==null) {
-//						appModel.newDesktop();
+//					try {
+//						Queryable q = app.getQ();
+//						String chartVS = app.getViewStrategy().getDescription();
+//						String chartType =  URLEncoder.encode(chartVS, "UTF-8"); // TODO translate
+//						String qry = URLEncoder.encode(q.getQuery(), "UTF-8");
+//						String srvr = URLEncoder.encode(q.getServerName(), "UTF-8");
+//						String url = "http://localhost:8080/sqleditor?chart=" + chartType + "&qry=" + qry + "&server=" + srvr;
+//						java.awt.Desktop.getDesktop().browse(new URI(url));
+//					} catch (IOException | URISyntaxException e1) {
+//						e1.printStackTrace();
 //					}
-//					
-//					// add the necessary connection from qStudio to sqlDashboards
-//					// silently failing if already present.
-//					ConnectionManager sqldConnMan = appModel.getConnectionManager();
-//					ConnectionManager qsConnMan = qstudioFrame.getConnectionManager();
-//					sqldConnMan.addServer(Arrays.asList(qsConnMan.getServer(app.getQ().getServerName())));
-//					
-//					DesktopModel dm = appModel.getSelectedDesktopModel();
-//					dm.add(new ChartWidget(dm, app));
 //				}
 //			});
 
-			exportButton = new JButton("Export to Pulse", Theme.CIcon.SQLDASH_LOGO.get16());
-			exportButton.addActionListener(new ActionListener() {
+			copyMarkdownButton = new JButton("Copy Markdown", Theme.CIcon.MARKDOWN_GREEN.get16()) {
+				@Override public boolean isEnabled() {
+					return app.getViewStrategy().getPulseName() != null;
+				}
+			};
+			copyMarkdownButton.addActionListener(new ActionListener() {
 				
 				@Override public void actionPerformed(ActionEvent e) {
 					try {
 						Queryable q = app.getQ();
-						String chartVS = app.getViewStrategy().getDescription();
-						String chartType =  URLEncoder.encode(chartVS, "UTF-8"); // TODO translate
-						String qry = URLEncoder.encode(q.getQuery(), "UTF-8");
-						String srvr = URLEncoder.encode(q.getServerName(), "UTF-8");
-						String url = "http://localhost:8080/sqleditor?chart=" + chartType + "&qry=" + qry + "&server=" + srvr;
-						java.awt.Desktop.getDesktop().browse(new URI(url));
-					} catch (IOException | URISyntaxException e1) {
+						String chartVS = app.getViewStrategy().getPulseName();
+						if(chartVS != null) {
+							String mdCommand = "```sql type='" + chartVS + "' server='" + q.getServerName() + "' " 
+									+ "\n" + q.getQuery()
+									+ "\n```";
+							Clipboard clpbrd = Toolkit.getDefaultToolkit().getSystemClipboard();
+							clpbrd.setContents(new StringSelection(mdCommand ), null);
+							growler.showInfo("Copied to clipboard:\r\n" + mdCommand, "Clipboard Set");
+						} else {
+							growler.showWarning("No export possible. Try a different chart type.", "No export possible.");
+						}
+						UpdateHelper.registerEvent("cha_copymd");
+					} catch (Exception e1) {
 						e1.printStackTrace();
 					}
 				}
 			});
-
 
 			popoutButton = new JButton("Open in New Window", Theme.CIcon.POPUP_WINDOW.get16());
 			popoutButton.addActionListener(new ActionListener() {
@@ -192,20 +205,27 @@ class ChartResultPanel extends JPanel implements GrabableContainer {
 						ChartWidget cw  = new ChartWidget(app);
 						Queryable q = cw.getQ();
 						String title = q.getQuery() + " - " + q.getServerName();
-						JPanel p = cw.getPanel();
+						JPanel p = cw.getPanel(); // You must get panel then refresh!!
 						cw.tabChanged(q, latestQueryResult.rs);
-						
-						JFrame f =  SwingUtils.getPopupFrame(ChartResultPanel.this, 
-								title, cw.getPanel(), 
-								cw.getViewStrategy().getIcon().getBufferedImage());
+						Icon ic = cw.getViewStrategy().getIcon();
+						BufferedImage bi = ic == null ? null : ic.getBufferedImage();
+						JFrame f =  SwingUtils.getPopupFrame(ChartResultPanel.this, title, p, bi);
 						f.setVisible(true);
 					}
+					UpdateHelper.registerEvent("cha_popout");
 				}
 			});
 
+			final InputLabeller IL = Theme.getInputLabeller();
+			Box b = Box.createVerticalBox();
 			setLayout(new BorderLayout());
-			add(exportButton, BorderLayout.NORTH);
-			add(popoutButton, BorderLayout.SOUTH);
+			b.add(IL.get("", popoutButton, "popoutButton"));
+			b.add(IL.get("", configureButton, "configureButton"));
+//			b.add(IL.get("", exportButton, "exportButton"));
+			b.add(IL.get("", copyMarkdownButton, "copyMarkdownButton"));
+			
+			b.add(Box.createVerticalGlue());
+			add(b, BorderLayout.CENTER);
 		}
 		
 	}

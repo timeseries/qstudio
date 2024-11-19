@@ -34,7 +34,6 @@ import com.timestored.connections.JdbcTypes;
 import com.timestored.connections.MetaInfo;
 import com.timestored.cstore.CAtomTypes;
 import com.timestored.misc.HtmlUtils;
-import com.timestored.qstudio.model.ServerQEntity.QQuery;
 import com.timestored.theme.Theme.CIcon;
 
 import lombok.Getter;
@@ -55,7 +54,7 @@ public class TableSQE extends BaseSQE {
 	TableSQE(String serverName, String namespace, String name, CAtomTypes type, 
 			long count, boolean isPartitioned, String[] colNames, JdbcTypes jdbcTypes) {
 		
-		super(serverName, namespace, name, type);
+		super(serverName, namespace, name, type, jdbcTypes);
 		Preconditions.checkArgument(count>=-2);
 		Preconditions.checkNotNull(colNames);
 		Preconditions.checkArgument(colNames.length>0);

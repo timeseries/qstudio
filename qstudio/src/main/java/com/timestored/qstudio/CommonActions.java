@@ -27,14 +27,23 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -44,12 +53,17 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
+import javax.swing.text.JTextComponent;
+import javax.swing.text.TextAction;
 
 import lombok.Getter;
+import lombok.NonNull;
+import lombok.Setter;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.timestored.TimeStored;
 import com.timestored.command.Command;
+import com.timestored.command.CommandDialog;
 import com.timestored.command.CommandManager;
 import com.timestored.command.CommandProvider;
 import com.timestored.connections.ConnectionManager;
@@ -58,16 +72,21 @@ import com.timestored.connections.ConnectionShortFormat;
 import com.timestored.connections.JdbcTypes;
 import com.timestored.connections.ServerConfig;
 import com.timestored.connections.ServerConfigBuilder;
+import com.timestored.cstore.CAtomTypes;
 import com.timestored.docs.Document;
 import com.timestored.docs.OpenDocumentsModel;
 import com.timestored.jgrowl.Growler;
 import com.timestored.messages.Msg;
 import com.timestored.messages.Msg.Key;
-import com.timestored.misc.IOUtils;
-import com.timestored.qstudio.kdb.ModuleRunner;
+import com.timestored.misc.AIFacade;
+import com.timestored.misc.HtmlUtils;
+import com.timestored.misc.AIFacade.AIresult;
 import com.timestored.qstudio.model.QueryAdapter;
 import com.timestored.qstudio.model.QueryManager;
 import com.timestored.qstudio.model.QueryResult;
+import com.timestored.qstudio.model.ServerQEntity;
+import com.timestored.qstudio.model.TableSQE;
+import com.timestored.swingxx.AAction;
 import com.timestored.theme.ShortcutAction;
 import com.timestored.theme.Theme;
 import com.timestored.theme.Theme.CIcon;
@@ -80,15 +99,18 @@ public class CommonActions implements CommandProvider {
 
 	private static final Logger LOG = Logger.getLogger(CommonActions.class.getName());
 
-	
-	private final Action profileAction;
+	@Setter private static ActionPlugin proActionPlugin = null;
 	private final Action copyServerHopenToClipboardAction;
 	private final Action editCurrentServerAction;
-	private final Action unitTestAction;
-	private final Action loadScriptAction;
 	
 	private final Action qAction;
 	private final Action qLineAction;
+	private final Action generateAIQueryAction;
+	private final Action aIExplainAction;
+	private final Action generateAIAction;
+	private final Action googleAction;
+	private final Action qCurrentStatementAction;
+	private final Action disconnectAllAction;
 	private final Action qLineAndMoveAction;
 	private final Action qCancelQueryAction;
 	private final Action sendClipboardQuery;
@@ -96,45 +118,48 @@ public class CommonActions implements CommandProvider {
 	private final Growler growler;
 
 	private final Action addServerAction = new AddServerAction(null);
+	private final Action serverSelectAction;
+	
 	private final Action addServerListAction;
 	private final Action removeServerAction;
 	private final AbstractAction copyServerListAction;
 	private final List<Action> serverActions;
 	
-	private final List<Action> queryActions;
-	private final List<Action> proActions;
+	@Getter private final List<Action> queryActions;
+	@Getter private final List<Action> aiActions;
+	@Getter private final List<Action> proActions;
 
+	private final QStudioModel qStudioModel;
 	private final OpenDocumentsModel openDocumentsModel;
 	private final ConnectionManager connectionManager;
-	private final Persistance persistance;
 	private JFrame parent;
-	@Getter private final Action watchDocExpressionAction;
-
-
-
+//	@Getter private final Action watchDocExpressionAction;
+	
 	public static final KeyStroke AUTO_COMPLETE_KS = KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, InputEvent.CTRL_MASK);
+	
+	@FunctionalInterface
+	public interface ActionPlugin {
+		List<Action> getActions(@NonNull CommonActions commonActions, @NonNull Growler growler);
+	}
 	
 	/**
 	 * @param parent the frame that popup dialogs will be centred to.
 	 */
-	CommonActions(final OpenDocumentsModel openDocumentsModel, 
-			final QueryManager queryManager,
-			final ConnectionManager connectionManager, 
-			final Persistance persistance, 
-			final JFrame parent, final Growler growler) {
-
-		this.openDocumentsModel = openDocumentsModel;
-		this.queryManager = queryManager;
-		this.connectionManager = connectionManager;
-		this.persistance = persistance;
+	CommonActions(final QStudioModel qStudioModel, final JFrame parent, final Persistance persistance, final Growler growler) {
+		this.qStudioModel = Preconditions.checkNotNull(qStudioModel);
+		this.openDocumentsModel = qStudioModel.getOpenDocumentsModel();
+		this.queryManager = qStudioModel.getQueryManager();
+		this.connectionManager = qStudioModel.getConnectionManager();
 		this.parent = parent;
 		this.growler = growler;
-		
+
+
+		this.proActions = proActionPlugin == null ? Collections.emptyList() : proActionPlugin.getActions(this, growler);
 		/*
 		 * Construct all of our actions
 		 */        
 		qAction = new ShortcutAction(Msg.get(Key.QUERY_SELECTION),
-        		Theme.CIcon.SERVER_GO, "Send highlighted Q query to current server.",
+        		Theme.CIcon.GREEN_NEXT, "Send highlighted query to current server.",
         		KeyEvent.VK_E, KeyEvent.VK_E) {
 					private static final long serialVersionUID = 1L;
 
@@ -145,6 +170,7 @@ public class CommonActions implements CommandProvider {
 				} else {
 					sendQuery(openDocumentsModel.getSelectedDocument().getContent());
 				}
+				UpdateHelper.registerEvent("com_queryselection");
 			}
 		};
 		
@@ -155,6 +181,7 @@ public class CommonActions implements CommandProvider {
 				if(serverName != null) {
 					new ConnectionManagerDialog(connectionManager, parent, serverName).setVisible(true);
 				}
+				UpdateHelper.registerEvent("com_editserver");
 			}
 			
 			@Override public boolean isEnabled() {
@@ -174,84 +201,78 @@ public class CommonActions implements CommandProvider {
 						clpbrd.setContents(new StringSelection(hopenCommand ), null);
 						growler.showInfo("Copied to clipboard:\r\n" + hopenCommand, "Clipboard Set");
 					}
+					UpdateHelper.registerEvent("com_copyhopen");
 				}
 				
 			}
 		};
 		
-		profileAction = new ShortcutAction(Msg.get(Key.PROFILE_SELECTION),
-        		Theme.CIcon.CLOCK_GO, "Profile highlighted Q query on current server.",
-        		KeyEvent.VK_Q, KeyEvent.VK_Q) {
-					private static final long serialVersionUID = 1L;
-
-			@Override public void actionPerformed(ActionEvent ae) {
-
-				if(QLicenser.requestPermission(QLicenser.Section.UI_NICETIES)) {
-					String qry = openDocumentsModel.getSelectedDocument().getSelectedText();
-					if(qry.length()<=0) {
-						qry = openDocumentsModel.getSelectedDocument().getContent();
-					}
-					if(qry.length() > 0) {
-						try {
-							String prof = IOUtils.toString(CommonActions.class, "profile.q");
-							String fullQuery = prof + "@[;1] .prof.profile \"" +
-									qry.replace("\"", "\\\"") + "\""; 
-							sendQuery(fullQuery, "PROFILE -> " + qry);
-						} catch (IOException e) {
-							LOG.log(Level.SEVERE, "Problem loading profile.q", e);
-						}
-					}
-				}
-				
-			}
-		};
-
 		
-		unitTestAction = new ShortcutAction("Unit Test Current Script",
-        		Theme.CIcon.SCRIPT_GO, "Unit test all namespaces within the current script.",
-        		KeyEvent.VK_T, KeyEvent.VK_T) {
-					private static final long serialVersionUID = 1L;
-
-			@Override public void actionPerformed(ActionEvent ae) {
-				runQUnitTests();
-			}
-		};
-
-		 
-		loadScriptAction = new ShortcutAction(Msg.get(Key.LOAD_SCRIPT_MODULE),
-        		Theme.CIcon.SERVER_GO, "Load this q script onto current server.",
-        		KeyEvent.VK_L, KeyEvent.VK_L) {
-					private static final long serialVersionUID = 1L;
-
-			@Override public void actionPerformed(ActionEvent e) {
-				runScriptModuleLoad();
-			}
-		};
+		generateAIQueryAction = new GenerateAIQueryAction("AI Text to SQL");
+		aIExplainAction = new AIExplainAction("AI Explain SQL");
+		generateAIAction = new GenerateAIAction("Ask OpenAI");
+		googleAction = new GoogleAction("Google");
 		
         qLineAction = new ShortcutAction(Msg.get(Key.QUERY_LINE),
-        		Theme.CIcon.SERVER_GO, "Send current line as query",
+        		Theme.CIcon.GREEN_PLAY, "Send current line as query",
         		KeyEvent.VK_ENTER, KeyEvent.VK_ENTER) {
 					private static final long serialVersionUID = 1L;
 
 			@Override public void actionPerformed(ActionEvent e) {
 				sendQuery(openDocumentsModel.getSelectedDocument().getCurrentLine());
+				UpdateHelper.registerEvent("com_queryline");
 			}
 		};
+		
+		qCurrentStatementAction = new ShortcutAction("Query Current Statement",
+        		Theme.CIcon.BLUE_PLAY, "Send current statement as query",
+        		KeyEvent.VK_Q, KeyEvent.VK_Q) {
+					private static final long serialVersionUID = 1L;
 
+			@Override public void actionPerformed(ActionEvent e) {
+				ServerConfig sc = connectionManager.getServer(queryManager.getSelectedServerName());
+				boolean isKdb = sc == null || sc.isKDB();
+				if(isKdb) {
+					sendQuery(openDocumentsModel.getSelectedDocument().getCurrentLine());
+				} else {
+					sendQuery(openDocumentsModel.getSelectedDocument().getCurrentStatement());
+				}
+				UpdateHelper.registerEvent("com_querycurrent");
+			}
+		};
+		
+		disconnectAllAction = new ShortcutAction("Disconnect All Databases",
+        		Theme.CIcon.DISCONNECT, "Disconnect from all database servers.") {
+					private static final long serialVersionUID = 1L;
+
+			@Override public void actionPerformed(ActionEvent e) {
+				connectionManager.close();
+				try {
+					queryManager.close();
+				} catch (Exception e1) {
+					LOG.warning("problem closing QM" + e1.toString());
+					growler.show("problem closing QM");
+				}
+				growler.show("All connections closed.");
+			}
+		};
+		disconnectAllAction.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0));
+		
 		String qlDesc = "Query Line and Move";
-		qLineAndMoveAction = new AbstractAction(qlDesc, Theme.CIcon.SERVER_GO.get()) {
+		qLineAndMoveAction = new AbstractAction(qlDesc, Theme.CIcon.GREEN_FORWARD.get16()) {
 			@Override public void actionPerformed(ActionEvent e) {
 				Document doc = openDocumentsModel.getSelectedDocument();
 				String qry = doc.getCurrentLine();
 				sendQuery("{x}"+qry, qry);
 				doc.gotoNextLine();
+				UpdateHelper.registerEvent("com_querylineandmove");
 			}
 		};
 		qLineAndMoveAction.putValue(AbstractAction.SHORT_DESCRIPTION, qlDesc);
 		int modifier = InputEvent.SHIFT_MASK | InputEvent.CTRL_MASK;
-		KeyStroke k = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, modifier);
+		KeyStroke kEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, modifier);
 //		qLineAndMoveAction.putValue(AbstractAction.MNEMONIC_KEY, mnemonic);	
-		qLineAndMoveAction.putValue(AbstractAction.ACCELERATOR_KEY, k);
+		qLineAndMoveAction.putValue(AbstractAction.ACCELERATOR_KEY, kEnter);
 
         qCancelQueryAction = new ShortcutAction(Msg.get(Key.CANCEL_QUERY),
         		Theme.CIcon.CANCEL, "Cancel the latest query",
@@ -260,6 +281,7 @@ public class CommonActions implements CommandProvider {
 
 			@Override public void actionPerformed(ActionEvent e) {
 				queryManager.cancelQuery();
+				UpdateHelper.registerEvent("com_querycancel");
 			}
 		};
 
@@ -287,23 +309,22 @@ public class CommonActions implements CommandProvider {
 				}
 			}
 		};
-		
-		watchDocExpressionAction = new ShortcutAction("Add as Watched Expression",
-						CIcon.EYE, "Add the selected text as a watched expression.") {
-							private static final long serialVersionUID = 1L;
-
-					@Override public void actionPerformed(ActionEvent e) {
-						String qry = openDocumentsModel.getSelectedDocument()
-								.getSelectedText();
-						queryManager.addWatchedExpression(qry);
-					}
-				};				
+//		
+//		watchDocExpressionAction = new ShortcutAction("Add as Watched Expression",
+//						CIcon.EYE, "Add the selected text as a watched expression.") {
+//							private static final long serialVersionUID = 1L;
+//
+//					@Override public void actionPerformed(ActionEvent e) {
+//						String qry = openDocumentsModel.getSelectedDocument()
+//								.getSelectedText();
+//						queryManager.addWatchedExpression(qry);
+//					}
+//				};				
 				
-		queryActions = Collections.unmodifiableList(Arrays.asList(qAction, 
-				qLineAction, qLineAndMoveAction, sendClipboardQuery, qCancelQueryAction));
-
+		queryActions = Collections.unmodifiableList(Arrays.asList(disconnectAllAction, qAction,  
+				qLineAction, qCurrentStatementAction, qLineAndMoveAction, sendClipboardQuery, qCancelQueryAction));
 		
-		proActions = Collections.unmodifiableList(Arrays.asList(loadScriptAction, profileAction, unitTestAction));
+		aiActions = Collections.unmodifiableList(Arrays.asList(generateAIAction, aIExplainAction, generateAIQueryAction, googleAction));
 		
 		queryManager.addQueryListener(new QueryAdapter() {
 			@Override public void selectedServerChanged(String server) {
@@ -323,87 +344,47 @@ public class CommonActions implements CommandProvider {
 		 * Server Actions
 		 */
 		addServerListAction = new AddServerListAction(parent, connectionManager);
-		 
-		removeServerAction = new AbstractAction(Msg.get(Key.REMOVE_ALL_SERVERS), Theme.CIcon.DELETE.get16()) {
-				
+
+		serverSelectAction = new ShortcutAction(Msg.get(Key.FIND_SERVER),
+        		Theme.CIcon.EDIT_FIND, "Change the selected server by text searching.",
+        		KeyEvent.VK_R, KeyEvent.VK_R) {
+					private static final long serialVersionUID = 1L;
+
 			@Override public void actionPerformed(ActionEvent e) {
+				CommandDialog cd = new CommandDialog("Select Server:", queryManager.getChangeServerCommands(true), BackgroundExecutor.EXECUTOR);
+				cd.setLocationRelativeTo(null);
+				cd.setName("ServerNameDialog");
+				cd.setVisible(true);
+
+				UpdateHelper.registerEvent("com_addserverlist");
+			}
+		};
+		 
+		removeServerAction = new AAction(Msg.get(Key.REMOVE_ALL_SERVERS), Theme.CIcon.DELETE.get16(), e -> {
 				int choice = JOptionPane.showConfirmDialog(parent, "Delete all Server Connections?",
 						Msg.get(Key.WARNING), JOptionPane.WARNING_MESSAGE);
 				if(choice == JOptionPane.YES_OPTION) {
 					connectionManager.removeServers();
 				}
-			}
-		};
+
+				UpdateHelper.registerEvent("com_removeallservers");
+			});
 		
-		copyServerListAction = new AbstractAction(Msg.get(Key.COPY_SERVER_LIST_TO_CLIPBOARD), CIcon.EDIT_COPY.get16()) {
-			
-			@Override public void actionPerformed(ActionEvent e) {
+		copyServerListAction = new AAction(Msg.get(Key.COPY_SERVER_LIST_TO_CLIPBOARD), CIcon.EDIT_COPY.get16(), e-> {
 				String s = ConnectionShortFormat.compose(connectionManager.getServerConnections(), 
 						JdbcTypes.KDB);
 				StringSelection sel = new StringSelection(s);
 				Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
-			}
-		};
+				UpdateHelper.registerEvent("com_copyserverlist");
+			});
 
-		serverActions = Collections.unmodifiableList(Arrays.asList(addServerAction, 
+		serverActions = Collections.unmodifiableList(Arrays.asList(addServerAction, serverSelectAction, 
 				addServerListAction, copyServerListAction, removeServerAction, copyServerHopenToClipboardAction, editCurrentServerAction));
+		
+		refreshQButtonEnabledFlags();
 	}
 
-	/** 
-	 * Execute the entire text of the current document, then fix the namespace
-	 * of all functions. Bug in Kdb that remotely executed code leaves
-	 * functions defined in the global namespace. 
-	 */
-	private void runScriptModuleLoad() {
-		String qry = null;
-		try {
-			Document doc = openDocumentsModel.getSelectedDocument();
-			qry = ModuleRunner.getRunScriptModuleLoad(doc.getContent());
-			sendQuery(qry, "Loading -> " + doc.getTitle());
-		} catch(IOException io) {
-			growler.showWarning("Could not load script loader module", "Module Load Fail"); 
-		}
-	}
 
-	private void runQUnitTests() {
-		// check license, show warning if necessary then perform action
-		if(QLicenser.requestPermission(QLicenser.Section.UNIT_TEST)) {
-			
-			final Persistance.Key warningKey = Persistance.Key.SHOW_QDOC_WARNING;
-			String msgHtml = "<a href='" + TimeStored.Page.QUNIT_HELP.url() + "'>QUnit</a> is a framework for implementing testing in kdb. <br/> <br/>" + 
-					"Running qunit tests involves: <br/>" +
-					"1. Loading the qunit module into the .qunit namespace. <br/>" +
-					"2. Loading all test functions within the currently selected document. <br/>" +
-					"3. Running the tests, checking all assertions are met. <br/>" +
-					"4. Reporting a table of results. <br/>" +
-					"<br/>" +
-					"Tests must be properly structured and more help can be found on the " +
-					"<a href='" + TimeStored.Page.QSTUDIO_HELP_QUNIT.url() + "'>qunit help page</a><br/><br/>" + 
-							"<b>Run the qunit tests?</b>";
-			final String title = "Load and Run .qunit module";
-			
-			int choice = showDismissibleWarning(persistance, warningKey, msgHtml, title);
-			
-			if(choice == JOptionPane.OK_OPTION) {
-				String qry = null;
-				try {
-					String testq = openDocumentsModel.getSelectedDocument().getContent();
-					try {
-						qry = ModuleRunner.getRunQUnitQuery(testq);
-					} catch(IllegalArgumentException iae) {
-						String message = "no namespace found in this file";
-						JOptionPane.showMessageDialog(null, message);
-					}
-				} catch(IOException io) {
-					growler.showWarning("Could not load testing module", "Module Load Fail"); 
-				}
-				if(qry != null) {
-					String t = openDocumentsModel.getSelectedDocument().getTitle();
-					sendQuery(qry, "TEST file -> " + t);
-				}
-			}
-		}
-	}
 
 	/**
 	 * Show the user a warning about carrying out this particular action.
@@ -413,9 +394,10 @@ public class CommonActions implements CommandProvider {
 	 * 		e.g. JOptionPane.OK_OPTION or JOptionPane.CANCEL_OPTION
 	 */
 	public static int showDismissibleWarning(final Persistance persistance, 
-			final Persistance.Key warningKey, String msgHtml, final String title) {
+			final Persistance.Key warningKey, String msgHtml, final String title, 
+			String confirmation, int defaultChoice) {
 		
-		int choice = JOptionPane.OK_OPTION;
+		int choice = defaultChoice;
 		if(persistance.getBoolean(warningKey, true)) {
 		
 			final JCheckBox showWarningCheckBox = new JCheckBox("Do not show this information again");
@@ -429,10 +411,14 @@ public class CommonActions implements CommandProvider {
 			JPanel msg = new JPanel(new BorderLayout());
 			msg.add(Theme.getHtmlText(msgHtml), BorderLayout.CENTER);
 			msg.add(showWarningCheckBox, BorderLayout.SOUTH);
-			
-			choice = JOptionPane.showConfirmDialog(null, 
-					msg, title, 
-					JOptionPane.OK_CANCEL_OPTION);
+			String[] buttons = new String[] {confirmation == null ? "Yes" : confirmation,"Cancel"};
+
+			choice = JOptionPane.showOptionDialog(null, msg, title,
+				JOptionPane.OK_CANCEL_OPTION,
+			   JOptionPane.INFORMATION_MESSAGE,
+			   null,
+			   buttons,
+			   buttons[0]);
 		}
 		return choice;
 	}
@@ -442,10 +428,20 @@ public class CommonActions implements CommandProvider {
 		boolean serverAvailable = queryManager.getSelectedServerName()!=null;
 		qAction.setEnabled(serverAvailable);
 		qLineAction.setEnabled(serverAvailable);
+		qCurrentStatementAction.setEnabled(serverAvailable);
 		qCancelQueryAction.setEnabled(serverAvailable);
-		watchDocExpressionAction.setEnabled(serverAvailable);
+//		watchDocExpressionAction.setEnabled(serverAvailable);
 		copyServerHopenToClipboardAction.setEnabled(serverAvailable);
 		editCurrentServerAction.setEnabled(serverAvailable);
+		
+		if(serverAvailable) {
+			ServerConfig sc = connectionManager.getServer(queryManager.getSelectedServerName());
+			boolean enableKdb = sc == null || sc.isKDB();
+			for(Action a : proActions) {
+				a.setEnabled(enableKdb);
+			}
+			copyServerHopenToClipboardAction.setEnabled(enableKdb);
+		}
 	}
 	
 	/** attempt to send query, if it fails, report to user */
@@ -477,41 +473,88 @@ public class CommonActions implements CommandProvider {
 					title, JOptionPane.WARNING_MESSAGE);
 			return;
 		}
-		
+
+		ServerConfig sc = connectionManager.getServer(queryManager.getSelectedServerName());
+		String qryToRun = qry;
 		try {
-			LOG.info("Send Query->" + qry);
-			queryManager.sendQuery(qry, queryTitle);
+			if(openDocumentsModel.getSelectedDocument().getFileEnding().toLowerCase().equals("prql")) {
+				qryToRun = compilePRQL(qry, sc.getJdbcType());
+			}
+			LOG.info("Send Query->" + qryToRun);
+			queryManager.sendQuery(qryToRun, queryTitle);
 		} catch(IllegalStateException ia) {
 			LOG.log(Level.WARNING, "Send Query Error", ia);
 			growler.showSevere(ia.getMessage(), Msg.get(Key.ERROR));
 		} catch(Exception ex) {
 			LOG.log(Level.WARNING, "Send Query Error", ex);
 			growler.showSevere("Problem sending query to server", Msg.get(Key.ERROR)); 
+			queryManager.sendQRtoListeners(sc, QueryResult.exceptionResult(sc, qryToRun, null, ex));
 		}
 	}
-
-	/**
-	 * @return all actions related to sending queries.
-	 */
-	public List<Action> getQueryActions() {
-		return queryActions;
-	}
 	
-	/** get actions only supported by pro version of qStudio - unit testing, csv loading etc. **/
-	public List<Action> getProActions() { return proActions; }
+	public static String compilePRQL(String qry, JdbcTypes jdbcTypes) throws IOException {
+		
+		String target = getPrqlTarget(jdbcTypes);
+		String[] commands = new String[] { "prqlc","compile", "--hide-signature-comment", "--color", "never" };
+		if(target != null && !qry.contains("prql target:")) {
+			commands = new String[] { "prqlc","compile", "--hide-signature-comment", "--color", "never", "--target", target };
+		}
+		
+		Process process = new ProcessBuilder(commands).redirectErrorStream(true).start();
+		BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+		BufferedReader bre = new BufferedReader (new InputStreamReader(process.getErrorStream()));
+		OutputStream stdin = process.getOutputStream(); // write to this
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(stdin));
+        writer.write(qry);
+        writer.close();
+
+		StringBuilder sb = new StringBuilder();
+		StringBuilder errSb = new StringBuilder();
+		String line = null;
+		while ( (line = reader.readLine()) != null) {
+		   sb.append(line);
+		   sb.append(System.getProperty("line.separator"));
+		}
+		reader.close();
+		while ((line = bre.readLine()) != null) { 
+			System.err.println(line); 
+			errSb.append(line);
+			errSb.append(System.getProperty("line.separator"));
+		}
+	    bre.close();
+	    try {
+			process.waitFor();
+		} catch (InterruptedException e) {
+			throw new IOException(e);
+		}
+	    if(process.exitValue()!=0) {
+	    	throw new IOException("Non-zero exit value for runArgs:" + sb + System.getProperty("line.separator") + errSb);
+	    }
+
+		UpdateHelper.registerEvent("com_compileprql");
+		return sb.toString();
+	}
+
+
+	private static String getPrqlTarget(JdbcTypes jdbcTypes) {
+		if(jdbcTypes == null) {
+			return null;
+		}
+		String s = jdbcTypes.equals(JdbcTypes.CLICKHOUSE) ? "clickhouse" :
+				jdbcTypes.equals(JdbcTypes.DUCKDB) ? "duckdb" :
+					jdbcTypes.equals(JdbcTypes.BABELDB) ? "duckdb" :
+					jdbcTypes.equals(JdbcTypes.MSSERVER) ? "mssql" :
+						jdbcTypes.equals(JdbcTypes.MYSQL) ? "mysql" :
+							jdbcTypes.equals(JdbcTypes.POSTGRES) ? "postgres" :
+								jdbcTypes.equals(JdbcTypes.SQLITE_JDBC) ? "sqlite" :
+									jdbcTypes.equals(JdbcTypes.SNOWFLAKE) ? "snowflake" : null;
+		return s == null ? null : "sql." + s;
+	}
 	
 	/**
 	 * @return action that sends the currently highlighted text to q server.
 	 */
 	Action getqAction() { return qAction; }
-	
-
-	/** @return action that sends the current text line to q server. */
-	public Action getqLineAction() { return qLineAction; }
-	
-	/** @return Action to cancel currently sent query. */
-	public Action getqCancelQueryAction() { return qCancelQueryAction; }
-	
 
 	/**
 	 * @return action that shows dialogue to allow editing a selected {@link ServerConfig}.
@@ -524,6 +567,8 @@ public class CommonActions implements CommandProvider {
 	 * @return action that shows dialogue to allow adding a {@link ServerConfig}.
 	 */
 	public Action getAddServerAction() { return addServerAction; }
+	
+	public Action getServerSelectAction() { return serverSelectAction; }
 	
 	public Action getCloseConnServerAction(ServerConfig sc) { return new CloseConnServerAction(sc); }
 
@@ -586,6 +631,7 @@ public class CommonActions implements CommandProvider {
 		}
 	}
 
+
 	/** add a server to the {@link ConnectionManager} */
 	private class AddServerAction extends AbstractAction {
 		
@@ -594,8 +640,7 @@ public class CommonActions implements CommandProvider {
 
 		public AddServerAction(String folder) {
 			super(Msg.get(Key.ADD_SERVER), Theme.CIcon.SERVER_ADD.get());
-			putValue(SHORT_DESCRIPTION,
-					"Add a server to the list of possible connections");
+			putValue(SHORT_DESCRIPTION, "Add a server to the list of possible connections");
 			putValue(MNEMONIC_KEY, KeyEvent.VK_A);
 			this.folder = folder;
 		}
@@ -617,14 +662,18 @@ public class CommonActions implements CommandProvider {
 		private final ServerConfig sc;
 
 		public CloseConnServerAction(ServerConfig sc) {
-			super(Msg.get(Key.CLOSE_CONNECTION), Theme.CIcon.SERVER_LIGHTNING.get());
-			putValue(SHORT_DESCRIPTION,
-					"Close all connections to this database.");
+			super(Msg.get(Key.CLOSE_CONNECTION), Theme.CIcon.SERVER_CONNECT.get());
+			putValue(SHORT_DESCRIPTION, "Close all connections to this database.");
 			this.sc = sc;
 		}
 		
 		@Override public void actionPerformed(ActionEvent arg0) {
 			connectionManager.closePool(sc);
+			try {
+				queryManager.close();
+			} catch (Exception e) {
+				LOG.warning("Problem closing QM");
+			}
 		}
 	}
 	
@@ -650,6 +699,7 @@ public class CommonActions implements CommandProvider {
 			connectionManager.addServer(sc2);
 			ConnectionManagerDialog cmd = new ConnectionManagerDialog(connectionManager, parent, newName);
 			cmd.setVisible(true);
+			UpdateHelper.registerEvent("com_cloneserver");
 		}
 	}
 	
@@ -685,4 +735,195 @@ public class CommonActions implements CommandProvider {
 		return a;
 	}
 
+	private class GenerateAIAction extends TextAction {
+
+		public GenerateAIAction(String name) {
+			super(name);
+	        putValue(Action.SMALL_ICON, Theme.CIcon.AI.get16());
+	        putValue(MNEMONIC_KEY, KeyEvent.VK_O);
+	        putValue(SHORT_DESCRIPTION, "Send your question to OpenAI.");
+		}
+
+		@Override public void actionPerformed(ActionEvent e) {
+	    	JTextComponent txtc = getTextComponent(e);
+	    	Function<String,String> queryReplace = (String selectedText) -> {
+				try {
+					return AIFacade.queryOpenAIstructured(selectedText).getFirstContent();
+				} catch (IOException e1) {
+					LOG.warning("Error AI : " + e1);
+					return "Error AI : " + e1;
+				}
+	    	};
+	    	performOpenAIQueryReplace(txtc, queryReplace, true);
+			UpdateHelper.registerEvent("com_generateai");
+		}
+	}
+
+	private class GoogleAction extends TextAction {
+		public GoogleAction(String name) {
+			super(name);
+	        putValue(Action.SMALL_ICON, Theme.CIcon.GOOGLE.get16());
+	        putValue(MNEMONIC_KEY, KeyEvent.VK_G);
+	        putValue(SHORT_DESCRIPTION, "Google the selected text or line.");
+		}
+
+		@Override public void actionPerformed(ActionEvent e) {
+	    	String selectedTxt = openDocumentsModel.getSelectedDocument().getSelectedText();
+	    	if(selectedTxt.trim().length() == 0) {
+	    		selectedTxt = openDocumentsModel.getSelectedDocument().getCurrentLine();
+	    	}
+			try {
+				String qry = URLEncoder.encode(selectedTxt, "UTF-8");
+	    		HtmlUtils.browse("https://www.google.com?q=" + qry);
+			} catch (UnsupportedEncodingException e1) {
+				LOG.warning("Problem googling:" + e1);
+			}
+			UpdateHelper.registerEvent("com_google");
+		}
+	}
+	
+	public static boolean checkForOpenAIkey() {
+		final String OPENAI_INSTRUCT = "You must first configure an OpenAI key in Settings->Preferences...->Misc";
+		boolean hasKey = AIFacade.getOpenAIkey() != null && AIFacade.getOpenAIkey().trim().length() > 1;
+		if(!hasKey) {
+			JOptionPane.showMessageDialog(null, OPENAI_INSTRUCT);
+			new PreferencesDialog(MyPreferences.INSTANCE, null);
+		}
+		return hasKey;
+	}
+	
+	/**
+	 * @param atEnd If true, place the replacement text at the end of the current selection. Otherwise place it before.
+	 */
+	public void performOpenAIQueryReplace(JTextComponent txtc, Function<String,String> performQuery, boolean atEnd) {
+		if(!checkForOpenAIkey()) {
+			return;
+		}
+    	String selectedTxt = openDocumentsModel.getSelectedDocument().getSelectedText();
+    	// was possible for caret to be outside bounds when at very end of text
+		String fullTxt = txtc.getText().replace("\r","");
+		int end = txtc.getSelectionEnd();
+		int start = txtc.getSelectionStart(); 
+    	if(selectedTxt.trim().length() == 0) {
+    		selectedTxt = openDocumentsModel.getSelectedDocument().getCurrentLine();
+    		for(;end >= 0 && end < fullTxt.length(); end++) {
+    			if(fullTxt.charAt(end) == '\n') {
+    				break;
+    			}
+    		}
+    		for(; start >= 0 && start < fullTxt.length(); start--) {
+    			if(fullTxt.charAt(start) == '\n') {
+    				break;
+    			}
+    		}
+    	}
+		try {
+			String queryRes = performQuery.apply(selectedTxt);
+			LOG.info("queryOpenAIstructured:" + selectedTxt);
+			if(atEnd) {
+				String newTxt = "\n" + queryRes;
+				txtc.setCaretPosition(end);
+				txtc.replaceSelection(newTxt);
+				txtc.setSelectionStart(end);
+				txtc.setSelectionEnd(end + newTxt.length());
+			} else { // at start - before selection
+				String newTxt = queryRes + "\n";
+				txtc.setCaretPosition(start);
+				txtc.replaceSelection(newTxt);
+				txtc.setSelectionStart(start);
+				txtc.setSelectionEnd(start + newTxt.length());
+			}
+		} catch (Exception e1) {
+			LOG.warning("Problem queryOpenAIstructured: " + e1);
+		}
+	}
+	
+	private JdbcTypes getJdbcType() {
+    	String serverName = queryManager.getSelectedServerName();
+    	ServerConfig sc = serverName == null ? null : connectionManager.getServer(serverName);
+    	return sc != null ? sc.getJdbcType() : JdbcTypes.KDB;
+	}
+
+	private class GenerateAIQueryAction extends TextAction {
+		public GenerateAIQueryAction(String name) {
+			super(name);
+	        putValue(Action.SMALL_ICON, Theme.CIcon.ROBOT_GO.get16());
+	        putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_F7,0));
+	        putValue(MNEMONIC_KEY, KeyEvent.VK_A);
+	        putValue(SHORT_DESCRIPTION, "Send your question to OpenAI to generate the SQL.");
+			
+		}
+
+		@Override public void actionPerformed(ActionEvent e) {
+        	
+	    	JTextComponent txtc = getTextComponent(e);
+	    	Function<String,String> queryReplace = (String selectedText) -> {
+	        	// Try to get table info for query
+	        	String tblInfo = "";
+	        	List<ServerQEntity> st = qStudioModel.getAdminModel().getServerModel().getServerObjectTree().getAll();
+				if (st != null && st.size() > 0) {
+					try {
+					List<TableSQE> tables = st.stream().filter(se -> se.getType().equals(CAtomTypes.TABLE)).map(se -> (TableSQE)se).collect(Collectors.toList());
+							
+					tblInfo = tables.stream()
+								.map(se -> {
+									String s = "";
+									if(se.getQQueries().size()>0) {
+										s += se.getQQueries().get(0).getQuery() + "\n";	
+									}
+									s += se.getFullName() + " Columns: " + Joiner.on(",").join(se.getColNames()) + "\n";
+									return s;
+								})
+								.collect(Collectors.joining());
+					} catch(Exception e2) {
+						LOG.warning("Could not populate tblInfo for AI query:" + e2);
+					}
+				}
+				LOG.info("queryOpenAIstructured:" + selectedText);
+				try {
+					AIresult air = AIFacade.queryOpenAIstructured(getJdbcType(), tblInfo, selectedText);
+					return air.getFirstCode().trim();
+				} catch (IOException e1) {
+					LOG.warning("Error AI : " + e1);
+					return "Error AI : " + e1;
+				}
+	    	};
+	    	
+	    	performOpenAIQueryReplace(txtc, queryReplace, true);
+			UpdateHelper.registerEvent("com_genaiquery");
+		}
+	}
+
+	private class AIExplainAction extends TextAction {
+		public AIExplainAction(String name) {
+			super(name);
+	        putValue(Action.SMALL_ICON, Theme.CIcon.ROBOT_COMMENT.get16());
+	        putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_F6,0));
+	        putValue(MNEMONIC_KEY, KeyEvent.VK_E);
+	        putValue(SHORT_DESCRIPTION, "Ask OpenAI to explain the SQL.");
+			
+		}
+
+		@Override public void actionPerformed(ActionEvent e) {
+	    	JTextComponent txtc = getTextComponent(e);
+			String com = getJdbcType().getComment();
+	    	Function<String,String> queryReplace = (String selectedText) -> {
+				String aiQry = "For the " + getJdbcType() + " database ";
+				aiQry += "explain this SQL code:\n```\n";
+				aiQry += selectedText + "\n```\n";
+				
+				LOG.info("queryOpenAIstructured:" + aiQry);
+				try {
+					AIresult air = AIFacade.queryOpenAIstructured(aiQry);
+					return "\n" + com + air.getFirstContent().trim().replace("\n", ("\n" + com));
+				} catch (IOException | IllegalStateException e1) {
+					LOG.warning("Error AI : " + e1);
+					return "\n" + com + e1.toString().replace("\n", ("\n" + com));
+				}
+	    	};
+	    	
+	    	performOpenAIQueryReplace(txtc, queryReplace, false);
+			UpdateHelper.registerEvent("com_aiexplain");
+		}
+	}
 }

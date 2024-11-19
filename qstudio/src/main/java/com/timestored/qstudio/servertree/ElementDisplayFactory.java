@@ -35,6 +35,7 @@ import javax.swing.JPanel;
 
 import kx.c.KException;
 
+import com.timestored.connections.JdbcTypes;
 import com.timestored.connections.ServerConfig;
 import com.timestored.cstore.CAtomTypes;
 import com.timestored.qstudio.kdb.KdbTableFactory;
@@ -133,7 +134,7 @@ class ElementDisplayFactory {
 			} else if(elementDetails.getType().equals(CAtomTypes.LAMBDA)) {
 				return new FunctionEditingPanel(adminModel, queryName);
 			}
-		} else if (elementDetails.isTable()) {
+		} else if (elementDetails.isTable() || adminModel.getServerModel().getServerConfig().getJdbcType().equals(JdbcTypes.DOLPHINDB)) {
 			return new NonkdbTablePanel(adminModel, queryManager, elementDetails, chartTheme);
 		}
 		return null;

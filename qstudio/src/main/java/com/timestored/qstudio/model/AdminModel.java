@@ -404,6 +404,8 @@ public class AdminModel implements ConnectionManager.Listener,DocSource {
 			}
 		});
 	}
+	@Override public void serverAdded(ServerConfig sc) {  }	
+	
 
 	@Override public void statusChange(ServerConfig serverConfig, 
 			boolean connected) {
@@ -452,4 +454,5 @@ public class AdminModel implements ConnectionManager.Listener,DocSource {
 	public int renameFolder(String from, String to) {
 		return connectionManager.renameFolder(from, to);
 	}
+
 }

@@ -16,6 +16,7 @@
  */
 package com.timestored.qstudio.model;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.timestored.connections.JdbcTypes;
 import com.timestored.cstore.CAtomTypes;
 import com.timestored.misc.HtmlUtils;
 import com.timestored.theme.Theme.CIcon;
@@ -36,12 +38,14 @@ abstract class BaseSQE implements ServerQEntity {
 	private final String name;
 	private final CAtomTypes type;
 	private final String serverName;
+	protected final JdbcTypes jdbcTypes;
 	
-	protected BaseSQE(String serverName, String namespace, String name, CAtomTypes type) {
+	protected BaseSQE(String serverName, String namespace, String name, CAtomTypes type, JdbcTypes jdbcTypes) {
 		this.namespace = Preconditions.checkNotNull(namespace);
 		this.name = Preconditions.checkNotNull(name);
 		this.type = type;
 		this.serverName = serverName;
+		this.jdbcTypes = jdbcTypes;
 	}
 
 	@Override public String getName() {
@@ -57,7 +61,9 @@ abstract class BaseSQE implements ServerQEntity {
 	}
 
 	@Override public String getFullName() {
-		 return (namespace.equals(".") ? "" : namespace + ".") + name;
+		 return jdbcTypes != null && jdbcTypes.equals(JdbcTypes.DOLPHINDB) ? 
+				 		(namespace.equals(".") ? name : ("loadTable('" + namespace + "', '" + name + "')")) : 
+				 (namespace.equals(".") ? "" : namespace + ".") + name;
 	}
 	
 	@Override public String getDocName() {
@@ -83,6 +89,9 @@ abstract class BaseSQE implements ServerQEntity {
 	}
 
 	@Override public List<QQuery> getQQueries() {
+		if(jdbcTypes != null && !jdbcTypes.equals(JdbcTypes.KDB)) {
+			return Collections.emptyList();
+		}
 		List<QQuery> r = Lists.newArrayList();
 		r.add(new QQuery("Delete", CIcon.DELETE, "delete "+getName()+" from `"+getNamespace()));
 		return r;

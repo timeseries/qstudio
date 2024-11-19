@@ -47,12 +47,12 @@ import javax.swing.tree.TreePath;
 import com.google.common.collect.ImmutableList;
 import com.timestored.connections.ConnectionManager;
 import com.timestored.connections.ServerConfig;
-import com.timestored.docs.OpenDocumentsModel;
 import com.timestored.qstudio.CommonActions;
+import com.timestored.qstudio.QStudioModel;
 import com.timestored.qstudio.model.AdminModel;
 import com.timestored.qstudio.model.AdminModel.Category;
+import com.timestored.qstudio.model.DatabaseDirector;
 import com.timestored.qstudio.model.QEntity;
-import com.timestored.qstudio.model.QueryManager;
 import com.timestored.qstudio.model.ServerModel;
 import com.timestored.qstudio.model.ServerObjectTree;
 import com.timestored.qstudio.model.ServerQEntity;
@@ -73,19 +73,16 @@ public class ServerTreePanel extends JPanel {
 	private final ObjectTreePanel objectTreePanel;
 	private final ServerListPanel serverListPanel;
 	
-	public ServerTreePanel(final AdminModel adminModel, 
-			final QueryManager queryManager,
-			final CommonActions commonActions,
-			OpenDocumentsModel openDocumentsModel, JFrame parentFrame) {
-
-		serverListPanel = new ServerListPanel(adminModel, commonActions, parentFrame);
-		objectTreePanel = new ObjectTreePanel(adminModel, queryManager, openDocumentsModel);
+	public ServerTreePanel(final QStudioModel qStudioModel, final CommonActions commonActions, JFrame parentFrame) {
+		
+		serverListPanel = new ServerListPanel(qStudioModel.getAdminModel(), commonActions, parentFrame);
+		objectTreePanel = new ObjectTreePanel(qStudioModel);
 
 		final JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, serverListPanel, objectTreePanel);
 		setLayout(new BorderLayout());
 		add(splitPane, BorderLayout.CENTER);
-		splitPane.setResizeWeight(0.4);
-		splitPane.setDividerLocation(0.4);
+		splitPane.setResizeWeight(0.35);
+		splitPane.setDividerLocation(0.35);
 		splitPane.revalidate();
 		
 	}
@@ -112,20 +109,17 @@ class ObjectTreePanel extends JPanel {
 	private Set<String> hiddenNS;
 
 	private final AdminModel adminModel;
-	private final QueryManager queryManager;
-	private final OpenDocumentsModel openDocumentsModel;
+	private final QStudioModel qStudioModel;
 	// variable used to make expanding default namespace nodes easier
 	private final List<DefaultMutableTreeNode> defaultNSnodes = new ArrayList<DefaultMutableTreeNode>();
 
 	
 	private ServerModel curServerModel;
 
-	public ObjectTreePanel(AdminModel adminModel, QueryManager queryManager,
-			OpenDocumentsModel openDocumentsModel) {
+	public ObjectTreePanel(QStudioModel qStudioModel) {
 		
-		this.adminModel = adminModel;
-		this.queryManager = queryManager;
-		this.openDocumentsModel = openDocumentsModel;
+		this.qStudioModel = qStudioModel;
+		this.adminModel = qStudioModel.getAdminModel();
 		setLayout(new BorderLayout(GAP,GAP));
 		JPanel p = new JPanel();
 		p.setPreferredSize(new Dimension(400, 400));
@@ -191,6 +185,7 @@ class ObjectTreePanel extends JPanel {
 		String serverName = sm.getName();
 		String[] namespaces = kdbServerObjects.getNamespaces().toArray(new String[]{});
 		Arrays.sort(namespaces);
+		DatabaseDirector.ActionsGenerator actionsGenerator = DatabaseDirector.getActionsGenerator(qStudioModel.getQueryManager(), adminModel, sm);
 		
 		for(String ns : namespaces) {
 			
@@ -206,7 +201,7 @@ class ObjectTreePanel extends JPanel {
 					DefaultMutableTreeNode branch = new DefaultMutableTreeNode(new ServerQEntityNode(serverName, ed));
 					int i = ed.isPartitioned() ? 0 : 1;
 					for(String cn : ed.getColNames()) {
-						ColNode colNode = new ColNode(queryManager, adminModel, sm, ed, cn, i++==0);
+						ColNode colNode = new ColNode(actionsGenerator, ed, cn, i++==0);
 						branch.add(new DefaultMutableTreeNode(colNode));
 					}
 					nsTree.add(branch);
@@ -214,8 +209,14 @@ class ObjectTreePanel extends JPanel {
 				for(ServerQEntity ed : kdbServerObjects.getViews(ns)) {
 					nsTree.add(new DefaultMutableTreeNode(new ServerQEntityNode(serverName, ed)));
 				}
-				nsTree.add(getBranch(serverName, "Functions", sorted(kdbServerObjects.getFunctions(ns))));
-				nsTree.add(getBranch(serverName, "Variables", sorted(kdbServerObjects.getVariables(ns))));
+				List<ServerQEntity> funcs = sorted(kdbServerObjects.getFunctions(ns));
+				if(funcs.size() > 0) {
+					nsTree.add(getBranch(serverName, "Functions", funcs));
+				}
+				List<ServerQEntity> vars =  sorted(kdbServerObjects.getVariables(ns));
+				if(vars.size() > 0) {
+					nsTree.add(getBranch(serverName, "Variables",vars));
+				}
 				top.add(nsTree);
 			}
 		}
@@ -323,55 +324,13 @@ class ObjectTreePanel extends JPanel {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
 			if(insertText) {
-				openDocumentsModel.insertSelectedText(query);
+				qStudioModel.getOpenDocumentsModel().insertSelectedText(query);
 			} else {
-				queryManager.sendQuery(query);
+				qStudioModel.getQueryManager().sendQuery(query);
 			}
 		}
 	}
 }
 
 
-
-
-
-//private static class UserPermissionsNode extends CustomNode {
-//
-//	private static final String name = "User Permisions";
-//	private static final String desc = "Configure which users can access which data / functions";
-//	private static final ImageIcon icon =  QTheme.Icon.USER.get16();
-//
-//	private final ServerModel serverModel;
-//	private final Component parentFrame;
-//	
-//	/**
-//	 * Create a tree node that allows editing a servers user permissions.
-//	 * @param parentFrame User for positioning any popup dialogs.
-//	 */
-//	public UserPermissionsNode(ServerModel serverModel, Component parentFrame) {
-//		super(name, desc, icon);
-//		this.serverModel = serverModel;
-//		this.parentFrame = parentFrame;
-//	}
-//
-//	@Override public void doSelectionAction() {
-////		adminModel.setSelectedCategory(soTree.getName(), ".", 
-////				AdminModel.Category.UNSELECTED);
-//		showPermissionsDialog();
-//	}
-//	
-//	@Override public void addMenuItems(JPopupMenu menu) {
-//		menu.add(new JMenuItem(new AbstractAction(name, icon) {
-//			@Override public void actionPerformed(ActionEvent e) {
-//				showPermissionsDialog();
-//			}
-//		}));
-//	}
-//
-//	private void showPermissionsDialog() {
-//		JPanel p = new UserPermissionsPanel(new UserPermissionsModel(serverModel));
-//		SwingUtils.showAppDialog(parentFrame, "User Permissions", p, 
-//				QTheme.Icon.USER_SUIT.get().getImage());
-//	}
-//}
 

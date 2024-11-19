@@ -34,7 +34,9 @@ import java.io.File;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 import javax.print.PrintService;
 import javax.print.attribute.PrintRequestAttributeSet;
@@ -56,9 +58,17 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
 import jsyntaxpane.DefaultSyntaxKit;
+import jsyntaxpane.syntaxkits.BashSyntaxKit;
+import jsyntaxpane.syntaxkits.DOSBatchSyntaxKit;
+import jsyntaxpane.syntaxkits.JavaScriptSyntaxKit;
 import jsyntaxpane.syntaxkits.JavaSyntaxKit;
+import jsyntaxpane.syntaxkits.PlainSyntaxKit;
 import jsyntaxpane.syntaxkits.QSqlSyntaxKit;
+import jsyntaxpane.syntaxkits.SqlSyntaxKit;
+import jsyntaxpane.syntaxkits.PrqlSyntaxKit;
+import jsyntaxpane.syntaxkits.DosSyntaxKit;
 import jsyntaxpane.util.Configuration;
+import lombok.Setter;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -74,7 +84,7 @@ import com.timestored.swingxx.TabbedPaneRightClickBlocker;
  * Tabbed interface for displaying/editing of documents in {@link OpenDocumentsModel}.
  * NOT isntance safe as it relies on a static configuration {@link JavaSyntaxKit} related.
  */
-class ServerDocumentPanel  extends JPanel implements GrabableContainer {
+public class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 	private static final Logger LOG = Logger.getLogger(ServerDocumentPanel.class.getName());
 	
 	private static final long serialVersionUID = 1L;
@@ -87,21 +97,29 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 	private final CommonActions commonActions;
 	private final DocumentActions documentActions;
 	private final QDocController qDocController;
+	private final FileDropDocumentHandler.Listener fileDropListener;
 	private final JFrame parentFrame;
+	@Setter private String assumedFileEnding = "q";
 	
 	/** flag to prevent changes we make coming back from model and causing infinite loop */
 	private boolean iAmChangingSelection = false;
 	private Font editorFont = null;
 
+
 	static {
-		DefaultSyntaxKit.initKit(); // to make it jsysntaxpane
+		try {
+			DefaultSyntaxKit.initKit(); // to make it jsysntaxpane
+		} catch(Exception e) {
+			LOG.severe("Could not init code highlighter: " + e);
+		}
 	}
 	
 	ServerDocumentPanel(CommonActions commonActions, 
 			final DocumentActions documentActions, 
 			final OpenDocumentsModel openDocModel,
 			final JFrame parentFrame, 
-			final QDocController qDocController) {
+			final QDocController qDocController,
+			FileDropDocumentHandler.Listener fileDropListener) {
 
         /*
          * Construct our model
@@ -111,14 +129,12 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
         this.documentActions = documentActions;
         this.parentFrame = parentFrame;
         this.qDocController = Preconditions.checkNotNull(qDocController);
-        
+        this.fileDropListener = Preconditions.checkNotNull(fileDropListener);
 
-        FileDropDocumentHandler fileDropHandler = new FileDropDocumentHandler();
-        fileDropHandler.addListener(documentActions);
-        setTransferHandler(fileDropHandler);
 
         // create the tabbed pane
         tabbedPane = new JTabbedPane();
+        tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         tabbedPane.setName("serverDocsTabbedPane");
         tabbedPane.setMinimumSize(new Dimension(SPLITPANE_WIDTH*2, 1));
         tabbedPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
@@ -138,7 +154,18 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 
 			private void maybeHandleClick(MouseEvent e) {
 				if (e.isPopupTrigger()) {
-					new DocumentsPopupMenu(documentActions, null).show(e.getComponent(), e.getX(), e.getY());
+					// Find the closest doc.
+					if(e.getSource() instanceof JTabbedPane) {
+					     JTabbedPane tabs = (JTabbedPane)e.getSource();
+				    	 int idx = tabs.indexAtLocation(e.getX(), e.getY());
+			    	 	if(idx >= 0 && idx < openDocModel.getDocuments().size()) {
+			    	 		Document doc = openDocModel.getDocuments().get(idx);
+			    	 		if(doc != null) {
+								openDocModel.setSelectedDocument(doc);
+			    	 			new DocumentsPopupMenu(documentActions, doc).show(e.getComponent(), e.getX(), e.getY());
+			    	 		}
+			    	 	}
+					}
 				}
 			}
 		});
@@ -166,21 +193,21 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 		});
 	}
 
-
+	@Setter private static Consumer<EditorConfig> editorConfigUpdater = ec -> {};
 	
 	/**
 	 * Apply settings to the jsyntaxpane editor, this must be called before any are constructed.
 	 * If called after, you must then call applyEditorConfig on any instances to refresh them.
 	 */
 	public static void setEditorConfig(EditorConfig editorConfig) {
+		// The below is required to keep the line number margin on the left hand side the correct color in dark themes.
 		editorConfig.apply(DefaultSyntaxKit.getConfig(DefaultSyntaxKit.class));
-		editorConfig.apply(DefaultSyntaxKit.getConfig(QSqlSyntaxKit.class));
-		// Not sure why the below isn't needed but I did test and I tested switching dark/light themes and it all worked.
-//		editorConfig.apply(DefaultSyntaxKit.getConfig(SqlSyntaxKit.class));
-//		editorConfig.apply(DefaultSyntaxKit.getConfig(JavaScriptSyntaxKit.class));
-//		editorConfig.apply(DefaultSyntaxKit.getConfig(BashSyntaxKit.class));
-//		editorConfig.apply(DefaultSyntaxKit.getConfig(DOSBatchSyntaxKit.class));
-//		editorConfig.apply(DefaultSyntaxKit.getConfig(PlainSyntaxKit.class));
+		editorConfigUpdater.accept(editorConfig);
+		editorConfig.apply(DefaultSyntaxKit.getConfig(SqlSyntaxKit.class));
+		editorConfig.apply(DefaultSyntaxKit.getConfig(JavaScriptSyntaxKit.class));
+		editorConfig.apply(DefaultSyntaxKit.getConfig(BashSyntaxKit.class));
+		editorConfig.apply(DefaultSyntaxKit.getConfig(DOSBatchSyntaxKit.class));
+		editorConfig.apply(DefaultSyntaxKit.getConfig(PlainSyntaxKit.class));
 	}
 	
 	/**
@@ -191,9 +218,6 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
      * <p>
      * Note: In <i>headless</i> mode, no dialogs will be shown.
      * 
-     * <p> This method calls the full featured 
-     * {@link #print(MessageFormat, MessageFormat, boolean, PrintService, PrintRequestAttributeSet, boolean)
-     * print} method to perform printing.
      * @param headerFormat the text, in {@code MessageFormat}, to be
      *        used as the header, or {@code null} for no header
      * @param footerFormat the text, in {@code MessageFormat}, to be
@@ -204,8 +228,6 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
      * @throws SecurityException if this thread is not allowed to
      *                           initiate a print job request
      *         
-     * @see #print(MessageFormat, MessageFormat, boolean, PrintService)
-     * @see java.text.MessageFormat     
      */
 	public boolean print(MessageFormat headerFormat, MessageFormat footerFormat) throws PrinterException {
 		Component c = tabbedPane.getSelectedComponent();
@@ -237,13 +259,13 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 			codep.setEditorFont(editorFont);
 		}
 
-        FileDropDocumentHandler fileDropHandler = new FileDropDocumentHandler(codep.getTransferHandler());
-        fileDropHandler.addListener(documentActions);
-		codep.setTransferHandler(fileDropHandler);
-		
         // tab forward backward shortcuts
 		documentActions.addActionsToEditor(codep, document);
-        
+		if(fileDropListener != null) {
+			FileDropDocumentHandler fileDropHandler = new FileDropDocumentHandler(codep.getTransferHandler());
+			fileDropHandler.addListener(fileDropListener);
+			codep.setTransferHandler(fileDropHandler);
+		}
 		tabbedPane.add(codep);
 		tabbedPane.setSelectedComponent(codep);
 	}
@@ -277,6 +299,7 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 			c.requestFocus(); 
 		}
 	}
+
 	
 	public int getNumberOfDocumentsOpen() { return openDocModel.getDocuments().size(); }
 	
@@ -286,7 +309,6 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 			final QCodeEditorPanel codeEditorPanel = getComponent(doc);
 			if(codeEditorPanel != null) {
 				int idx = tabbedPane.indexOfComponent(codeEditorPanel);
-				
 				if(idx != -1) {
 					tabbedPane.setTabComponentAt(idx, getTabComponent(doc));
 				}
@@ -317,6 +339,7 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 			
 			@Override public void mouseReleased(MouseEvent e) {
 				if(SwingUtilities.isRightMouseButton(e)) {
+					openDocModel.setSelectedDocument(doc);
 		            new DocumentsPopupMenu(documentActions, doc).show(e.getComponent(), e.getX(), e.getY());
 				} 
 				super.mouseReleased(e);
@@ -361,8 +384,11 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 				@Override public void run() {
 					iAmChangingSelection = true;
 					QCodeEditorPanel qCodeEditorPanel = getComponent(document);
-					tabbedPane.remove(qCodeEditorPanel);
-					iAmChangingSelection = false;
+					if(qCodeEditorPanel != null) { // quickly sending multiple closes in UI may mean it's already gone.
+						qCodeEditorPanel.setTransferHandler(null);
+						tabbedPane.remove(qCodeEditorPanel);
+						iAmChangingSelection = false;
+					}
 				}
 			});
 		}
@@ -406,6 +432,8 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 		}
 
 		@Override public void docSaved() {
+			final QCodeEditorPanel codeEditorPanel = getComponent(openDocModel.getSelectedDocument());
+			codeEditorPanel.setContentType();
 	        refresh();
 		}
 		
@@ -423,6 +451,7 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 		
 		@Override public void docCaratModified() {	}
 		@Override public void folderSelected(File selectedFolder) { }
+		@Override public void ignoredFolderPatternSelected(Pattern ignoredFolderPattern) { }
 	}
 
 
@@ -434,15 +463,22 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 
 		private EditorPopupMenu(List<Action> appendedActions) {
 	        setName("EditorPopupMenu");
-	        
+
 	        for(Action ca : commonActions.getQueryActions()) {
 	        	add(ca).setName(ca.getValue(Action.NAME) + "-action");
 	        }
-	        add(commonActions.getWatchDocExpressionAction());
+	        addSeparator();
+	        for(Action ca : commonActions.getAiActions()) {
+	        	add(ca).setName(ca.getValue(Action.NAME) + "-action");
+	        }
 
 	        addSeparator();
 	        for(Action ea : documentActions.getEditorActions()) {
-		        add(ea).setName(ea.getValue(Action.NAME) + "-action");
+            	if(ea == null) {
+            		addSeparator();
+            	} else {
+    		        add(ea).setName(ea.getValue(Action.NAME) + "-action");
+            	}
 	        }
 	        if(!appendedActions.isEmpty()) {
 	        	addSeparator();
@@ -492,35 +528,7 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 	        
 	        String txt = editorPane.getText();
 	        // must add to scrollpane before setting content type to allow line numbers.
-	        String end = document.getFileEnding();
-	        switch(end) {
-	        	case "sql":
-	        	case "c":
-	        	case "cpp":
-	        	case "js":
-	        	case "json":
-	        	case "xml":
-	        	case "properties":
-	        	case "lua":
-	        	case "java":
-		        	editorPane.setContentType("text/" + end);
-		        	break;
-	        	default:
-	        		if(end.equals("bat")) {
-	        			editorPane.setContentType("text/dosbatch");
-	        		} else if(end.equals("sh")) {
-	        			editorPane.setContentType("text/bash");
-	        		} else if(end.equals("html") || end.equals("htm") || end.equals("xhtml")) {
-	        			editorPane.setContentType("text/xhtml");
-	        		} else if(end.equals("sh")) {
-	        			editorPane.setContentType("text/bash");	        			
-//					Purposefully not using plain. As it's just so plain.	        		
-//	        		} else if(end.equals("txt") || end.equals("md")) {
-//	        			editorPane.setContentType("text/plain");
-	        		} else {
-	        			editorPane.setContentType("text/qsql");
-	        		}
-	        }
+	        setContentType();
 	        editorPane.setText(txt);
 	        
 	        // tooltips = autocomplete
@@ -534,6 +542,50 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 			        document.setSelection(selectionStart, selectionEnd, caretPosition);
 				}
 			});
+		}
+
+		void setContentType() {
+			String end = document.getFileEnding();
+			if(end.length() == 0) {
+				end = assumedFileEnding;
+			}
+			String newContentType = "";
+	        switch(end) {
+	        	case "sql":
+	        	case "c":
+	        	case "cpp":
+	        	case "js":
+	        	case "json":
+	        	case "xml":
+	        	case "properties":
+	        	case "lua":
+	        	case "java":
+	        	case "prql":
+	        	case "dos":
+	        		newContentType = "text/" + end;
+		        	break;
+	        	default:
+	        		if(end.equals("bat")) {
+	        			newContentType = "text/dosbatch";
+	        		} else if(end.equals("sh")) {
+	        			newContentType = "text/bash";
+	        		} else if(end.equals("html") || end.equals("htm") || end.equals("xhtml")) {
+	        			newContentType = "text/xhtml";
+	        		} else if(end.equals("sh")) {
+	        			newContentType = "text/bash";	        			
+//					Purposefully not using plain. As it's just so plain.	        		
+//	        		} else if(end.equals("txt") || end.equals("md")) {
+//	        			editorPane.setContentType("text/plain");
+	        		} else {
+	        			newContentType = "text/qsql";
+	        		}
+	        }
+	        if(!editorPane.getContentType().equals(newContentType)) {
+	        	// Odd but setting contentType gets rid of text. Need to save and restore.
+	        	String content = document.getContent();
+	        	editorPane.setContentType(newContentType);
+	        	editorPane.setText(content);
+	        }
 		}
 		
 		
@@ -578,7 +630,7 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 		 * Set the keyboard and mouse shorcuts and actions 
 		 */
 		private void setActions(final Document document) {
-			
+
 			// hack to make control-e shortcut work as jsyntaxpane key listener otherwise
 			// consumes control-e and does not pass to actionMap etc.
 			editorPane.addKeyListener(new KeyAdapter() {
@@ -589,11 +641,20 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 					}
 				}
 			});
+			// hack to make control-e shortcut work as jsyntaxpane key listener otherwise
+			// consumes control-e and does not pass to actionMap etc.
+			editorPane.addKeyListener(new KeyAdapter() {
+				@Override public void keyPressed(KeyEvent e) { 
+					if(e.isControlDown() && e.getKeyCode()==KeyEvent.VK_R) {
+						commonActions.getServerSelectAction().actionPerformed(null);
+						e.consume();
+					}
+				}
+			});
 
 			add(qDocController.getOutlineFileAction(editorPane));
 			add(qDocController.getOutlineAllFilesAction(editorPane));
 			add(qDocController.getAutoCompleteAction(editorPane, parentFrame));
-			add(commonActions.getWatchDocExpressionAction());
 			final Action gotoDefinitionAction = qDocController.getGotoDefinitionAction(document);
 			add(gotoDefinitionAction);
 			final Action docLookupAction = qDocController.getDocLookupAction(editorPane);
@@ -672,4 +733,5 @@ class ServerDocumentPanel  extends JPanel implements GrabableContainer {
 		codep.setEditorEditable(false);
 		return new GrabItem(codep, d.getTitle());
 	}
+
 }

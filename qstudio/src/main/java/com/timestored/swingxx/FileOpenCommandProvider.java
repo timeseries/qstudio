@@ -16,15 +16,13 @@
  */
 package com.timestored.swingxx;
 
-import java.awt.Desktop;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
-import javax.swing.JOptionPane;
 import javax.swing.KeyStroke;
 import javax.swing.filechooser.FileSystemView;
 
@@ -34,20 +32,19 @@ import com.timestored.docs.DocumentActions;
 import com.timestored.messages.Msg;
 import com.timestored.messages.Msg.Key;
 
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+
 /**
  * takes the files that are displayed in the {@link FileTreePanel} and provides commands
  * to open them via {@link DocumentActions}. 
- */
+ */@RequiredArgsConstructor
 public class FileOpenCommandProvider implements CommandProvider {
 
-	private final DocumentActions documentActions;
-	private final FileTreePanel fileTreePanel;
+	@NonNull private final DocumentActions documentActions;
+	@NonNull private final FileTreePanel fileTreePanel;
+	@NonNull private final Consumer<File> fileOpenHandler;
 	private static final FileSystemView FSV = FileSystemView.getFileSystemView();
-
-	public FileOpenCommandProvider(DocumentActions documentActions, FileTreePanel fileTreePanel) {
-		this.documentActions = documentActions;
-		this.fileTreePanel = fileTreePanel;
-	}
 
 	/**
 	 * @return A list of commands for opening known files.
@@ -64,7 +61,6 @@ public class FileOpenCommandProvider implements CommandProvider {
 		}
 		return Collections.emptyList();
 	}
-
 	
 	private class FileOpenCommand implements Command {
 		
@@ -84,16 +80,7 @@ public class FileOpenCommandProvider implements CommandProvider {
 		@Override public String getTitleAdditional() { return f.getParentFile().getAbsolutePath(); }
 
 		@Override public void perform() {
-			if(f.isFile()) {
-				documentActions.openFile(f);
-			} else {
-				try {
-					Desktop.getDesktop().open(f);
-				} catch (IOException ioe) {
-					JOptionPane.showMessageDialog(null, "Could not open folder");
-				}
-			}
+			FileTreePanel.openFileOrBrowseTo(f, fileOpenHandler::accept);
 		}
-		
 	}
 }

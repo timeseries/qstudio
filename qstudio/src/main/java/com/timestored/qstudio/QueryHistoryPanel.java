@@ -19,6 +19,9 @@ package com.timestored.qstudio;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.EventQueue;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -26,6 +29,7 @@ import java.awt.event.MouseEvent;
 import java.util.LinkedList;
 import java.util.List;
 
+import javax.swing.JButton;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -110,7 +114,7 @@ class QueryHistoryPanel extends JPanel {
 
 	/** display the query result details for the selected history row **/
 	private void display(int row) {
-		final Component c = KDBResultPanel.getComponent(history.get(row), maxRowsShown);
+		final Component c = KDBResultPanel.getComponent(history.get(row), maxRowsShown, queryManager, false);
 		
 		EventQueue.invokeLater(new Runnable() {
 
@@ -139,13 +143,18 @@ class QueryHistoryPanel extends JPanel {
 				JPopupMenu popup = new JPopupMenu();
 				JMenuItem resendExp = new JMenuItem("Resend", Theme.CIcon.SERVER_GO.get16());
 				resendExp.addActionListener(new ActionListener() {
-
 					@Override
 					public void actionPerformed(ActionEvent arg0) {
 						queryManager.sendQuery(history.get(row).query);
 					}
 				});
+				JMenuItem copyToClipboardButton = new JMenuItem("Copy Query to Clipboard", Theme.CIcon.EDIT_COPY.get16());
+				copyToClipboardButton.addActionListener(ev -> {
+					Clipboard clpbrd = Toolkit.getDefaultToolkit().getSystemClipboard();
+					clpbrd.setContents(new StringSelection(history.get(row).query), null);
+				});
 				popup.add(resendExp);
+				popup.add(copyToClipboardButton);
 				popup.show(e.getComponent(), e.getX(), e.getY());
 			}
 		}

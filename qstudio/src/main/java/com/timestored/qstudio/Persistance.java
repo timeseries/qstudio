@@ -19,8 +19,8 @@ package com.timestored.qstudio;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
-import com.timestored.tscore.persistance.KeyInterface;
-import com.timestored.tscore.persistance.PersistanceInterface;
+import com.timestored.qstudio.model.KeyInterface;
+import com.timestored.qstudio.model.PersistanceInterface;
 
 /**
  * Saves persistance state between runs of the application.
@@ -40,7 +40,8 @@ public enum Persistance implements PersistanceInterface {
 		SHOW_QDOC_WARNING, SHOW_DBM_WARNING, SIGNED_LICENSE,
 		/** First Ever Run Date, obfuscated name to deter hackery **/
 		FERDB,// FERD -> FERDB when qStudio 2.0 released to allow new free trial period
-		QUERY_COUNT; 
+		QUERY_COUNT, FRAME_X, FRAME_Y, FRAME_EXTENDEDSTATE,
+		SHOW_KDB_EXAMPLE_WARNING, SHOW_NOTEBOOK_WARNING; 
 	}
 	
 	/**

@@ -25,7 +25,7 @@ import jsyntaxpane.util.Configuration;
 /**
  *  A configuration that when applied to a jsyntaxpane styles it.
  */
-class EditorConfigFactory {
+public class EditorConfigFactory {
 
 	private static final EditorConfig LIGHT = new LightEditorConfig();
 	private static final EditorConfig DARK = new DarkEditorConfig();

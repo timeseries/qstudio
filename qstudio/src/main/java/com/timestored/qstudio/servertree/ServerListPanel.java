@@ -20,6 +20,10 @@ import static com.timestored.theme.Theme.CENTRE_BORDER;
 import static com.timestored.theme.Theme.GAP;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -39,6 +43,7 @@ import java.util.logging.Logger;
 import javax.swing.Action;
 import javax.swing.DropMode;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
@@ -64,9 +69,9 @@ import com.timestored.messages.Msg;
 import com.timestored.messages.Msg.Key;
 import com.timestored.qstudio.BackgroundExecutor;
 import com.timestored.qstudio.CommonActions;
+import com.timestored.qstudio.QStudioModel;
 import com.timestored.qstudio.model.AdminModel;
 import com.timestored.qstudio.model.AdminModel.Category;
-import com.timestored.qstudio.model.DatabaseHtmlReport;
 import com.timestored.qstudio.model.QEntity;
 import com.timestored.qstudio.model.ServerModel;
 import com.timestored.qstudio.model.ServerObjectTree;
@@ -77,7 +82,9 @@ import com.timestored.swingxx.JTreeHelper.IdentifiableNode;
 import com.timestored.swingxx.SwingUtils;
 import com.timestored.theme.Theme;
 
-class ServerListPanel extends JPanel  implements AdminModel.Listener {
+import lombok.Setter;
+
+public class ServerListPanel extends JPanel  implements AdminModel.Listener {
 
 	private static final Logger LOG = Logger.getLogger(ServerListPanel.class.getName());
 	
@@ -110,14 +117,30 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 		for(String f : adminModel.getFolders()) {
 			myFolders.add(f + "/");
 		}
-		 
-		refreshGui();
+		setPreferredSize(new Dimension(400, 400)); // Required to make splitPane set correct ratio
 	}
 
 	private void refreshGui() {
 
 		LOG.info("refreshGui");
+		List<ServerModel> serverModels = adminModel.getServerModels();
+		Component c = new JPanel();
 		
+		if(serverModels.size() > 0) {
+			tree = generateTree();
+			c = new JScrollPane(tree);
+			highlightRow(adminModel.getServerModel());
+			CustomNode.configure(tree);
+		} else {
+			c = generateAddButton();
+		}
+
+		removeAll();
+		add(c, BorderLayout.CENTER);
+		revalidate();
+	}
+	
+	private JTree generateTree() {
 		DefaultMutableTreeNode top = new DefaultMutableTreeNode(new RootFolderNode());
 		
 		// get a list of expanded folder
@@ -126,13 +149,10 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 		if(tree != null) {
 			curExpandedFolders = JTreeHelper.getExpandedFolders(tree);
 		}
-		
 		// get a list of all folders
 		for(String f : adminModel.getFolders()) {
 			myFolders.add(f + "/");
 		}
-		
-		
 		// add all subfolder nodes while keeping map from name to node
 		nameToNode.clear();
 		nameToNode.put("", top);
@@ -170,7 +190,7 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 			}
 		}
 
-		tree = new JTree(top);
+		JTree tree = new JTree(top);
 		JTreeHelper.expandAll(tree, true);
 		if(!curExpandedFolders.isEmpty()) {
 			JTreeHelper.setFolderExpansions(tree, curExpandedFolders);
@@ -179,19 +199,23 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 		tree.setDragEnabled(true);
         tree.setDropMode(DropMode.ON_OR_INSERT);
         tree.setTransferHandler(new ServerMovingTreeTransferHandler(adminModel));
-        
 		
 		tree.setBorder(CENTRE_BORDER);
-		JScrollPane treeView = new JScrollPane(tree);
-		highlightRow(adminModel.getServerModel());
-		CustomNode.configure(tree);
-
-		removeAll();
-		add(treeView, BorderLayout.CENTER);
-		revalidate();
+		return tree;
 	}
-	
-	
+
+	private JPanel generateAddButton() {
+		JPanel panel = Theme.getVerticalBoxPanel();
+		panel.add(Theme.getSubHeader(Msg.get(Key.ADD_SERVER)));
+		JPanel p = new JPanel();
+		JButton button = new JButton(commonActions.getAddServerAction());
+		p.add(button);
+		button.setBackground(Theme.HIGHLIGHT_BUTTON_COLOR);
+		button.setForeground(Color.WHITE);
+		button.setOpaque(true);
+		panel.add(p);
+		return panel;
+	}
 
 
 	@Override public void modelChanged() {
@@ -449,6 +473,18 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 		
 		@Override public void addMenuItems(JPopupMenu menu) {
 			final ServerConfig sc = serverModel.getServerConfig();
+			
+			if(sc.getJdbcType().equals(JdbcTypes.BABELDB)) {
+				JMenuItem openFolderMI = new JMenuItem("Open Folder");
+				openFolderMI.setIcon(Theme.CIcon.FOLDER.get());
+				openFolderMI.setName("ssOpenFolder");
+				openFolderMI.addActionListener(e -> {
+					try {
+						Desktop.getDesktop().open(QStudioModel.getLOCALDB_DIR());
+					} catch (IOException e1) {				}
+				});
+				menu.add(openFolderMI);
+			}
 	
 			JMenuItem propertiesMI = new JMenuItem("Properties");
 			propertiesMI.setEnabled(sc.isKDB());
@@ -457,7 +493,7 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 					String title = sc.getName() + " Properties";
 					adminModel.refresh(sc);
 					ServerModel sm = adminModel.getServerModel(sc.getName());
-					JPanel contentPanel = new ServerDescriptionPanel(sm);
+					JPanel contentPanel = SelectedServerObjectPanel.getServerDescriptionPanel(adminModel.getServerModel());
 					SwingUtils.showAppDialog(javax.swing.SwingUtilities.getWindowAncestor(ServerListPanel.this), title, contentPanel, 
 							Theme.CIcon.SERVER.get().getImage());
 				}
@@ -478,40 +514,42 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 			menu.add(refreshMenuItem);
 			menu.add(commonActions.getCloseConnServerAction(sc));
 
-			JMenuItem generateTableDocs = new JMenuItem("Generate Table Docs " + serverModel.getName());
-			generateTableDocs.setEnabled(sc.isKDB());
-			generateTableDocs.setName("ssgenerateTableDocs");
-			generateTableDocs.addActionListener(new ActionListener() {
-
-				@Override public void actionPerformed(ActionEvent e) {
-					
-					File myDocs = new JFileChooser().getFileSystemView().getDefaultDirectory();
-					if(savedDocFile == null) {
-						savedDocFile = new File(myDocs, "table-docs.html");
-					}
-					savedDocFile = SwingUtils.askUserSaveLocation(savedDocFile, "html");
-					
-			        if (savedDocFile != null) {
-			            try {
-			            	KdbConnection kdbConn = serverModel.getConnection();
-			            	if(kdbConn == null) {
-			            		throw new IOException("Could not connect to server: " + serverModel.getName());
-			            	}
-			            	DatabaseHtmlReport.generate(kdbConn, savedDocFile);
-
-							SwingUtils.offerToOpenFile(Msg.get(Key.DOCS_GENERATED), savedDocFile, 
-									Msg.get(Key.OPEN_DOCS_NOW), Msg.get(Key.CLOSE));
-						} catch (IOException ioe) {
-							String msg = Msg.get(Key.ERROR_SAVING) + ": " + savedDocFile + "\r\n" + ioe.toString();
-					        LOG.warning(msg);
-					        JOptionPane.showMessageDialog(null, msg, Msg.get(Key.ERROR_SAVING), JOptionPane.ERROR_MESSAGE);
+			if(reportGenerator != null) {
+				JMenuItem generateTableDocs = new JMenuItem("Generate Table Docs " + serverModel.getName());
+				generateTableDocs.setEnabled(sc.isKDB());
+				generateTableDocs.setName("ssgenerateTableDocs");
+				generateTableDocs.addActionListener(new ActionListener() {
+	
+					@Override public void actionPerformed(ActionEvent e) {
+						
+						File myDocs = new JFileChooser().getFileSystemView().getDefaultDirectory();
+						if(savedDocFile == null) {
+							savedDocFile = new File(myDocs, "table-docs.html");
 						}
-			        } else {
-			        	LOG.info(Msg.get(Key.SAVE_CANCELLED));
-			        }
-				}
-			});
-			menu.add(generateTableDocs);
+						savedDocFile = SwingUtils.askUserSaveLocation(savedDocFile, "html");
+						
+				        if (savedDocFile != null) {
+				            try {
+				            	KdbConnection kdbConn = serverModel.getConnection();
+				            	if(kdbConn == null) {
+				            		throw new IOException("Could not connect to server: " + serverModel.getName());
+				            	}
+				            	reportGenerator.generate(kdbConn, savedDocFile);
+	
+								SwingUtils.offerToOpenFile(Msg.get(Key.DOCS_GENERATED), savedDocFile, 
+										Msg.get(Key.OPEN_DOCS_NOW), Msg.get(Key.CLOSE));
+							} catch (Exception ioe) {
+								String msg = Msg.get(Key.ERROR_SAVING) + ": " + savedDocFile + "\r\n" + ioe.toString();
+						        LOG.warning(msg);
+						        JOptionPane.showMessageDialog(null, msg, Msg.get(Key.ERROR_SAVING), JOptionPane.ERROR_MESSAGE);
+							}
+				        } else {
+				        	LOG.info(Msg.get(Key.SAVE_CANCELLED));
+				        }
+					}
+				});
+				menu.add(generateTableDocs);
+			}
 			
 			
 			menu.add(commonActions.getEditServerAction(sc));
@@ -527,7 +565,10 @@ class ServerListPanel extends JPanel  implements AdminModel.Listener {
 		}
 	}
 
-
+	public static interface ReportGenerator {
+		void generate(KdbConnection kdbConnection, File savedDocFile) throws Exception;
+	}
+	@Setter private static ReportGenerator reportGenerator = null;
 
 }
 

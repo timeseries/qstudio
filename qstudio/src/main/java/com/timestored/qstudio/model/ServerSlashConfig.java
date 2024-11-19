@@ -26,7 +26,7 @@ import javax.activation.UnsupportedDataTypeException;
 import kx.c.KException;
 
 import com.timestored.kdb.KdbConnection;
-import com.timestored.qstudio.kdb.SysCommand;
+import com.timestored.kdb.SysCommand;
 
 /**
  * Contains the information commonly accessible in KDB via the \ system commands. 

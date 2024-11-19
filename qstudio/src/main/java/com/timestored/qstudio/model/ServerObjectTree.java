@@ -17,6 +17,8 @@
 package com.timestored.qstudio.model;
 
 import java.io.IOException;
+import java.sql.SQLException;
+
 import static com.google.common.collect.Iterables.filter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,7 +40,7 @@ import kx.c.Dict;
 import kx.c.KException;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NonNull;
+import lombok.Setter;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.MoreObjects;
@@ -47,6 +49,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.timestored.connections.ConnectionManager;
+import com.timestored.connections.JdbcTypes;
 import com.timestored.connections.MetaInfo;
 import com.timestored.connections.MetaInfo.ColumnInfo;
 import com.timestored.connections.ServerConfig;
@@ -75,16 +78,7 @@ public class ServerObjectTree {
 	 * Query that returns a dictionary from 
 	 * namespace->varNames->(type; count; isTable; isPartitioned; colnames/funcArgs; isView)
 	 */
-	private static final String GET_TREE_QUERY = "/ qstudio - get server tree \r\n" +
-			"{   nsl:\".\",/:string `,key `;    \r\n" +
-			"    nsf:{[ns] \r\n        ff:{ [viewset; v; fullname; sname]\r\n" +
-			"            findColArgs:{$[.Q.qt x; cols x; 100h~type x; (value x)1; `$()]};\r\n" +
-			"            safeCount: {$[.Q.qp x; $[`pn in key `.Q; {$[count x;sum x;-1]} .Q.pn y; -1]; count x]};\r\n" +
-			"            (@[type;v;0h]; .[safeCount;(v;fullname);-2]; @[.Q.qt;v;0b]; @[.Q.qp;v;0b]; @[findColArgs;v;()]; .[in;(sname;viewset);0b])};\r\n" +
-			"        vws: system \"b \",ns;\r\n        n: asc key[`$ns] except `;\r\n" +
-			"        fn: $[ns~enlist \".\"; n; ns,/:\".\",/:string n];\r\n" +
-			"        n!.'[ ff[vws;;;]; flip ( @[`$ns; n]; fn; n)]};\r\n" +
-			"    (`$nsl)!@[nsf;;()!()] each nsl}[]";
+	@Setter private static String GET_TREE_QUERY = null;
 	
 	private static final String DEFAULT_NAMESPACE = "."; 
 
@@ -132,6 +126,8 @@ public class ServerObjectTree {
 		try {
 			if(serverConfig.isKDB()) {
 				namespaceListingMap = getNSListing(serverConfig, connectionManager);
+			} else if(serverConfig.getJdbcType().equals(JdbcTypes.DOLPHINDB)) {
+				namespaceListingMap = getNSListingForDolphin(serverConfig, connectionManager);
 			} else {
 				namespaceListingMap = getNSqlListing(serverConfig, connectionManager);
 			}
@@ -175,10 +171,122 @@ public class ServerObjectTree {
 		allElements.stream().collect(Collectors.groupingBy(sqe -> sqe.getNamespace())).forEach((ns,sqel) -> r.put(ns, new NamespaceListing(sqel)));
 		return r;
 	}
-	
+
+
+
+	private static Map<String, NamespaceListing> getNSListingForDolphin(ServerConfig serverConfig,
+			ConnectionManager connectionManager) throws IOException, SQLException {
+		if(!serverConfig.getJdbcType().equals(JdbcTypes.DOLPHINDB)) {
+			throw new IOException("Wrong server type");
+		}
+		List<ServerQEntity> allElements = new ArrayList<>();
+		String serverName = serverConfig.getName();
+		
+		// Get big DFS tables in namespaces.
+		try {
+			CachedRowSet namespaceRS = connectionManager.executeQuery(serverConfig, "getDFSDatabases()");
+			short tableTypNum =  (short) CAtomTypes.TABLE.getTypeNum();
+			while(namespaceRS.next()) {
+				String path = namespaceRS.getString(1);
+				CachedRowSet tablesRS = connectionManager.executeQuery(serverConfig, "listTables('" + path + "')");
+				while(tablesRS.next()) {
+					String tblName = tablesRS.getString("tableName");
+					String tblLoad = "loadTable('" + path + "', '" + tblName + "')";
+					String[] colNames = getDolphinColNames(connectionManager, serverConfig, tblLoad, new String[] { "unknown" }); 
+					ServerQEntity sqe = ServerQEntityFactory.get(serverName, path, tblName, tableTypNum, 0, true, false, 
+							false, colNames , serverConfig.getJdbcType());
+					allElements.add(sqe);
+				}
+			}
+		} catch(Exception e) {
+			LOG.warning("Error getting getDFSDatabases " + e);
+		}
+		
+
+		// Get in-memory tables and variables from objs
+		CachedRowSet vRS = connectionManager.executeQuery(serverConfig, "objs(true)");
+		while(vRS.next()) {
+			String name = vRS.getString("name");
+			String form = vRS.getString("form");
+			short typeNum = toTypeNum(vRS.getString("type"), form );
+			boolean isTbl = form.equals("TABLE");
+			String[] colNames = new String[] { "unknown" };
+			try {
+				if(isTbl) {
+					colNames = getDolphinColNames(connectionManager, serverConfig, name, colNames); 
+				}
+				ServerQEntity sqe = ServerQEntityFactory.get(serverName, ".", name, typeNum, vRS.getLong("rows"), isTbl, false, 
+						false, colNames , serverConfig.getJdbcType());
+				allElements.add(sqe);
+			} catch(IllegalArgumentException iae) {
+				LOG.warning("Error parsing " + name + " in tree:" + iae);
+			}
+		}
+
+		try { // Get functions - not much use as can't see content.
+			CachedRowSet functionRS = connectionManager.executeQuery(serverConfig, "SELECT * FROM defs() WHERE userDefined=1b");
+			while(functionRS.next()) {
+				String name = functionRS.getString("name");
+				String[] colNames = new String[] { "unknown" };
+				short typeNum = (short) CAtomTypes.LAMBDA.getTypeNum();
+				ServerQEntity sqe = ServerQEntityFactory.get(serverName, ".", name,  typeNum, 
+								0l, false, false, false, colNames, serverConfig.getJdbcType());
+				allElements.add(sqe);
+			}
+		} catch(Exception e) {
+			LOG.warning("Error getting getDFSDatabases " + e);
+		}
+
+		HashMap<String, NamespaceListing> r = new HashMap<String, NamespaceListing>();
+		allElements.stream().collect(Collectors.groupingBy(sqe -> sqe.getNamespace())).forEach((ns,sqel) -> r.put(ns, new NamespaceListing(sqel)));
+		return r;
+	}
+
+	private static String[] getDolphinColNames(ConnectionManager connectionManager, ServerConfig serverConfig, String name, String[] fallbackIfError) {
+		try {
+			List<String> l = new ArrayList<>();
+			CachedRowSet schemaRS = connectionManager.executeQuery(serverConfig, "select name from schema(" + name + ")['colDefs']");
+			while(schemaRS.next()) {
+				l.add(schemaRS.getString("name"));
+			}
+			return l.toArray(new String[] {});
+		} catch (Exception e) {
+			LOG.warning("Problem fetching columns for " + name + " : " + e);
+		}
+		return fallbackIfError;
+	}
+
+
+	private static Short toTypeNum(String typeString, String form) {
+		if(form.equals("TABLE")) {
+			return (short) CAtomTypes.TABLE.getTypeNum();
+		}
+		short mul = (short) (form.equals("SCALAR") ? -1 : form.equals("VECTOR") ? 1 : 1);
+		switch(typeString) {
+		case "BOOL": return (short) (CAtomTypes.BOOLEAN.getTypeNum() * mul);
+		case "STRING": return (short) (CAtomTypes.SYMBOL.getTypeNum() * mul);
+		case "DOUBLE": return (short) (CAtomTypes.FLOAT.getTypeNum() * mul);
+		case "INT": return (short) (CAtomTypes.INT.getTypeNum() * mul);
+		case "DATE": return (short) (CAtomTypes.DATE.getTypeNum() * mul);
+		case "MONTH": return (short) (CAtomTypes.MONTH.getTypeNum() * mul);
+		case "MINUTE": return (short) (CAtomTypes.MINUTE.getTypeNum() * mul);
+		case "SECOND": return (short) (CAtomTypes.SECOND.getTypeNum() * mul);
+		case "DATETIME": return (short) (CAtomTypes.DATETIME.getTypeNum() * mul);
+		case "TIMESTAMP":
+		case "NANOTIME":
+		case "NANOTIMESTAMP":
+			return (short) (CAtomTypes.TIMESTAMP.getTypeNum() * mul);
+		case "TIME": return (short) (CAtomTypes.TIME.getTypeNum() * mul);
+		default: return (short) CAtomTypes.MIXED_LIST.getTypeNum();
+		}
+	}
+
 
 	private static Map<String, NamespaceListing> getNSListing(ServerConfig serverConfig, ConnectionManager connectionManager)
 			throws IOException, KException, UnsupportedDataTypeException {
+		if(GET_TREE_QUERY == null) {
+			return Collections.emptyMap();
+		}
 		KdbConnection kdbConn = connectionManager.getKdbConnection(serverConfig);
 		if(kdbConn == null) {
 			throw new IOException("Could not connect to kdb server");

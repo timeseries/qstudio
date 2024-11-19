@@ -27,10 +27,8 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -38,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -64,6 +63,7 @@ import com.timestored.misc.DirWatch;
 import com.timestored.misc.DirWatch.DirWatchListener;
 import com.timestored.misc.FifoBuffer;
 import com.timestored.misc.IOUtils;
+import com.timestored.swingxx.JTreeHelper.IdentifiableNode;
 import com.timestored.theme.Theme;
 
 
@@ -73,10 +73,10 @@ import com.timestored.theme.Theme;
  */
 public class FileTreePanel extends JPanel {
 
+	private static final long serialVersionUID = 1L;
 	private static final Logger LOG = Logger.getLogger(FileTreePanel.class.getName());
 	private static final String DEFAULT_IGNORE_FOLDER_REGEX = "^\\..*|^target$";
-	public static final FileFilter IGNORE_SVN_FILTER =  generateFileFilter(Pattern.compile(DEFAULT_IGNORE_FOLDER_REGEX));
-	private static final int MAX_FILES_TO_WATCH = 1000;
+	public static final FileFilter IGNORE_SVN_FILTER =  DirWatch.generateFileFilter(Pattern.compile(DEFAULT_IGNORE_FOLDER_REGEX));
 
 	
 	private static FileSystemView fsv = FileSystemView.getFileSystemView();
@@ -90,7 +90,7 @@ public class FileTreePanel extends JPanel {
 	private FileFilter fileFilter;
 
 	private final DirWatch dirWatch;
-	private final FifoBuffer<File> fileCache = new FifoBuffer<File>(MAX_FILES_TO_WATCH);
+	private final FifoBuffer<File> fileCache = new FifoBuffer<File>(DirWatch.MAX_FILES_TO_WATCH);
 	private final FileTreeCellRenderer fileTreeCellRenderer;
 	private Pattern ignoredFoldersRegex;
 
@@ -101,7 +101,7 @@ public class FileTreePanel extends JPanel {
 		
 		this.listeners = new CopyOnWriteArrayList<Listener>();
 		this.fileFilter = IGNORE_SVN_FILTER;
-		this.dirWatch = new DirWatch(30100, fileFilter); // 1 minute for now
+		this.dirWatch = new DirWatch(30100, fileFilter, true); // 1 minute for now
 		this.setLayout(new BorderLayout());
 		noRootsComponent = new JLabel(" No root folder selected");
 		noRootsComponent.setName("noRootsComponent");
@@ -127,7 +127,7 @@ public class FileTreePanel extends JPanel {
 	/**
 	 * @return A Cache of most files displayed within the tree that is kept up 
 	 * to date within a time window by monitoring the file system.
-	 * If there are greater than {@link #MAX_FILES_TO_WATCH} only those
+	 * If there are greater than dirWatch.MAX_FILES_TO_WATCH only those
 	 * shown in the tree will be in the cache.
 	 */
 	public Collection<File> getFileCache() {
@@ -148,10 +148,7 @@ public class FileTreePanel extends JPanel {
 		
 		// open explorer window here
 		final String openText = contextFile.isDirectory() ? "Open Folder" : "Open Containing Folder";
-		popupMenu.add(new AbstractAction(openText) {
-			private static final long serialVersionUID = 1L;
-			
-			@Override public void actionPerformed(ActionEvent e) {
+		popupMenu.add(new AAction(openText, e -> {
 				if(nearestDir.isDirectory()) {
 					try {
 						Desktop.getDesktop().open(nearestDir);
@@ -161,24 +158,26 @@ public class FileTreePanel extends JPanel {
 						JOptionPane.showMessageDialog(null, msg);
 					}
 				}
-			}
-		});
+			}));
 		
 		
-		popupMenu.add(new AbstractAction(Msg.get(Key.CREATE_NEW_FOLDER), Theme.CIcon.FOLDER_ADD.get16()) {
-			private static final long serialVersionUID = 1L;
-
-			@Override public void actionPerformed(ActionEvent e) {
-				String newFolderName = JOptionPane.showInputDialog("Enter name for new Folder:", "New Folder");
-				if(newFolderName != null) {
-					File f = new File(nearestDir, newFolderName);
-					f.mkdirs();
-					f.mkdir();
-					refreshGui();
-				}
-			}
-		});
+		popupMenu.add(new AAction(Msg.get(Key.CREATE_NEW_FOLDER), Theme.CIcon.FOLDER_ADD.get16(), e -> {
+			String newFolderName = JOptionPane.showInputDialog("Enter name for new Folder:", "New Folder");
+			if(newFolderName != null) {
+				File ff = new File(nearestDir, newFolderName);
+				ff.mkdirs();
+				ff.mkdir();
+				refreshGui();
+			}}));
 		
+		
+		File pages = new File(root,"pages");
+		boolean isParent = false; 
+	    try {
+	    	isParent = file.getCanonicalPath().startsWith(pages.getCanonicalPath());
+		} catch (IOException e1) {}
+	    final boolean wasUnderPages = isParent;
+	    
 		
 		popupMenu.add(new AbstractAction(Msg.get(Key.CREATE_NEW_FILE), Theme.CIcon.PAGE.get16()) {
 			private static final long serialVersionUID = 1L;
@@ -187,7 +186,8 @@ public class FileTreePanel extends JPanel {
 				String newFileName = JOptionPane.showInputDialog("Enter name for new file:", "New File");
 				String errMsg = "Could not create new File";
 				if(newFileName != null) {
-					File f = new File(nearestDir, newFileName);
+					String n = (wasUnderPages && !newFileName.contains(".")) ? (newFileName + ".md") : newFileName;
+					File f = new File(nearestDir, n);
 					boolean success = true;
 					f.getParentFile().mkdirs();
 					try {
@@ -205,11 +205,7 @@ public class FileTreePanel extends JPanel {
 		});
 		
 
-		popupMenu.add(new AbstractAction("Refresh Tree") {
-			@Override public void actionPerformed(ActionEvent e) {
-				refreshGui();
-			}
-		});
+		popupMenu.add(new AAction("Refresh Tree",e -> refreshGui()));
 		
 		return popupMenu;
 	}
@@ -256,7 +252,6 @@ public class FileTreePanel extends JPanel {
 	private class RefreshTreeMouseListener extends MouseAdapter {
 
 		@Override public void mouseClicked(MouseEvent e) {
-			
 			if (root != null) {
 				// show menu or report as selected
 				if (SwingUtilities.isRightMouseButton(e) && rightClickMenuShown) {
@@ -265,10 +260,32 @@ public class FileTreePanel extends JPanel {
 			}
 		}
 	}
+
+	
+	private static String[] ENDS = new String[] { "exe","dll","zip","rar","7z","iso","msi","dmg","docx","xlsx","pptx","pdf","epub","mobi","mp3","wav","wma","flac","aac","mp4","avi","mkv","mov","wmv","gif","jpg","jpeg","png","bmp","tiff","psd"};
+	
+	private static boolean isKnownBinaryFormat(File f) {
+		String e = IOUtils.getFileEnding(f).toLowerCase();
+		return Arrays.stream(ENDS).anyMatch(s -> s.equals(e));
+	}
+
+	public static void openFileOrBrowseTo(File f, Consumer<File> fileOpener) {
+		if(f != null) {
+			if(f.isFile() && !FileTreePanel.isKnownBinaryFormat(f)) {
+				fileOpener.accept(f);
+			} else {
+				try {
+					Desktop.getDesktop().open(f);
+				} catch (IOException ioe) {
+					JOptionPane.showMessageDialog(null, "Could not open folder");
+				}
+			}
+		}
+	}
 	
 	/**
 	 * Interface to receive events from this file choosing tree.
-	 */
+	 */@FunctionalInterface
 	public static interface Listener {
 		public abstract void fileSelected(File selectedFile);
 	}
@@ -296,9 +313,10 @@ public class FileTreePanel extends JPanel {
 			removeAll();
 			add(noRootsComponent, BorderLayout.CENTER);
 		} else {
-			File[] files = getFiles(fileFilter, root);
+
+			File[] files = DirWatch.getFiles(fileFilter, root);
 			
-			fileCache.addAll(generateFileCache(files, fileFilter));
+			fileCache.addAll(DirWatch.generateFileCache(files, fileFilter));
 			
 			if (files.length > 0){
 				FileTreeNode rootTreeNode = new FileTreeNode(files, fileFilter);
@@ -307,10 +325,17 @@ public class FileTreePanel extends JPanel {
 				tree.setName("FileTreePanelTree");
 				tree.setCellRenderer(fileTreeCellRenderer);
 				tree.setRootVisible(false);
+				// Otherwise expanding can be very costly.
+				boolean isLarge = IOUtils.containsMoreThanMaxFiles(root, 500);
+				if(tree.getRowCount() < 20 && !isLarge) {
+					for (int i = 0; i < tree.getRowCount(); i++) {
+					    tree.expandRow(i);
+					}
+				}
 				tree.addMouseListener(treeMouseListener);
 				final JScrollPane jsp = new JScrollPane(this.tree);
 				jsp.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-				
+
 				removeAll();
 				add(jsp, BorderLayout.CENTER);
 			} else {
@@ -322,37 +347,6 @@ public class FileTreePanel extends JPanel {
 			revalidate();
 			repaint();
 		}
-	}
-
-	
-	private Collection<File> generateFileCache(File[] files, FileFilter fileFilter) {
-		if(files!=null && files.length > 0) {
-			List<File> fs = new ArrayList<File>();
-			addChildren(fs, files, fileFilter);
-			return fs;
-		}
-		return Collections.emptyList();
-	}
-
-	private static void addChildren(List<File> fs, File[] list, FileFilter fileFilter) {
-		if(list != null) {
-			fs.addAll(Arrays.asList(list));
-			for(File curF : list) {
-				if(fs.size() < MAX_FILES_TO_WATCH) {
-					addChildren(fs, getFiles(fileFilter, curF), fileFilter);
-				}
-			}
-		}
-	}
-
-	private static File[] getFiles(FileFilter fileFilter, File f) {
-		File[] files = new File[0];
-		if(fileFilter == null) {
-			files = f.listFiles();
-		} else {
-			files = f.listFiles(fileFilter);
-		}
-		return files;
 	}
 
 	
@@ -390,7 +384,7 @@ public class FileTreePanel extends JPanel {
 				dirWatch.stop();
 			} else {
 				try {
-					if(IOUtils.containsMoreThanMaxFiles(selectedFolder, MAX_FILES_TO_WATCH)) {
+					if(IOUtils.containsMoreThanMaxFiles(selectedFolder, DirWatch.MAX_FILES_TO_WATCH)) {
 						dirWatch.stop();
 					} else {
 						dirWatch.setRoot(selectedFolder);
@@ -417,6 +411,7 @@ public class FileTreePanel extends JPanel {
 
 	/** caching renderer for the file tree that uses system file icons. */
 	private static class FileTreeCellRenderer extends DefaultTreeCellRenderer {
+		private static final long serialVersionUID = 1L;
 
 		/** Icon cache to speed the rendering. */
 		private Map<String, Icon> iconCache = new HashMap<String, Icon>();
@@ -475,7 +470,7 @@ public class FileTreePanel extends JPanel {
 	}
 	
 	/** A node in the file tree.  */
-	private static class FileTreeNode implements TreeNode {
+	private static class FileTreeNode implements TreeNode,IdentifiableNode {
 
 		private final File file;
 		private File[] children;
@@ -496,7 +491,7 @@ public class FileTreePanel extends JPanel {
 			this.isFileSystemRoot = isFileSystemRoot;
 			this.fileFilter = fileFilter;
 			this.parent = parent;
-			this.children = getFiles(fileFilter, file);
+			this.children = DirWatch.getFiles(fileFilter, file);
 			
 			if (this.children == null) {
 				this.children = new File[0];
@@ -570,6 +565,8 @@ public class FileTreePanel extends JPanel {
 		@Override public TreeNode getParent() { return this.parent; }
 
 		@Override public boolean isLeaf() { return (this.getChildCount() == 0); }
+
+		@Override public String getId() { return file.getAbsolutePath(); }
 	}
 
 	/** Subscribe to file selection events */
@@ -580,21 +577,13 @@ public class FileTreePanel extends JPanel {
 	public void setRightClickMenuShown(boolean rightClickMenuShown) {
 		this.rightClickMenuShown = rightClickMenuShown;
 	}
-
-	private static FileFilter generateFileFilter(final Pattern regex) {
-		return new FileFilter() {
-			@Override public boolean accept(File pathname) {
-				return !regex.matcher(pathname.getName()).matches();
-			}
-		};
-	}
 	
 	public void setIgnoredFoldersRegex(final Pattern ignoredFoldersRegex) {
 		Preconditions.checkNotNull(ignoredFoldersRegex);
 		// if pattern changed, better re-parse folder.
 		if(this.ignoredFoldersRegex == null || !ignoredFoldersRegex.pattern().equals(this.ignoredFoldersRegex.pattern())) {
 			this.ignoredFoldersRegex = ignoredFoldersRegex;
-			this.fileFilter = generateFileFilter(ignoredFoldersRegex);
+			this.fileFilter = DirWatch.generateFileFilter(ignoredFoldersRegex);
 			refreshGui();
 		}
 	}

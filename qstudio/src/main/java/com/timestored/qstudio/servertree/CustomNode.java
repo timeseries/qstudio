@@ -82,7 +82,6 @@ class CustomNode {
 	/**
 	 * Configure a jtree to display CustomNodes, ie single selection only allowed,
 	 * display their menu on right click, left click to perform action.
-	 * @param tree
 	 */
 	public static void configure(JTree tree) {
 
@@ -195,11 +194,8 @@ class CustomNode {
 		}
 		
 		private void showPopupMenu(CustomNode cNode, MouseEvent e) {
-			
 			JPopupMenu menu = new JPopupMenu("Popup");
-
 			cNode.addMenuItems(menu);
-			
 			if(menu.getComponentCount() > 0) {
 				menu.show(e.getComponent(), e.getX(), e.getY());
 				menu.setVisible(true);

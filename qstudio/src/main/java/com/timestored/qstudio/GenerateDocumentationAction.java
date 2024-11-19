@@ -34,7 +34,6 @@ import com.timestored.docs.OpenDocumentsModel;
 import com.timestored.messages.Msg;
 import com.timestored.messages.Msg.Key;
 import com.timestored.qdoc.HtmlPqfOutputter;
-import com.timestored.qstudio.QLicenser.Section;
 import com.timestored.swingxx.SwingUtils;
 import com.timestored.theme.Theme;
 
@@ -55,9 +54,7 @@ public class GenerateDocumentationAction extends AbstractAction {
 	}
 	
 	@Override public void actionPerformed(ActionEvent ae) {
-		if (QLicenser.requestPermission(Section.QDOC)) {
-			runQDocAction();
-		}
+		runQDocAction();
 	}
 	
 

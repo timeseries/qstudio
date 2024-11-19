@@ -22,7 +22,7 @@ import java.awt.event.ComponentEvent;
 
 import javax.swing.JDialog;
 
-import com.timestored.tscore.persistance.PersistanceInterface;
+import com.timestored.qstudio.model.PersistanceInterface;
 
 /**
  * Monitor the size of a window and save its size to a certain persistance key.

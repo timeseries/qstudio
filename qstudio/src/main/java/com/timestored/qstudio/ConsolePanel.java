@@ -26,10 +26,10 @@ import java.util.List;
 import javax.swing.JPanel;
 
 import com.timestored.StringUtils;
+import com.timestored.babeldb.DBHelper;
 import com.timestored.connections.ServerConfig;
 import com.timestored.qstudio.model.QueryListener;
 import com.timestored.qstudio.model.QueryResult;
-import com.timestored.sqldash.model.DBHelper;
 import com.timestored.swingxx.ScrollingTextArea;
 
 /**
@@ -71,6 +71,8 @@ class ConsolePanel extends JPanel implements QueryListener,GrabableContainer {
 						qr.rs.beforeFirst();
 						qr.rs.next();
 						txt = ""+ qr.rs.getObject(1);
+					} else if(count <= 30) {
+						txt = DBHelper.toString(qr.rs, false);
 					}
 				} catch (SQLException e) {}	
 			}

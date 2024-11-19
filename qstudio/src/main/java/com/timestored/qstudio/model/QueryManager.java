@@ -28,20 +28,18 @@ import java.util.logging.Logger;
 
 import javax.swing.KeyStroke;
 
-import kx.c.Dict;
-import kx.c.Flip;
 import kx.c.KException;
 import kx.jdbc;
 import net.jcip.annotations.ThreadSafe;
 
 import com.google.common.base.Preconditions;
+import com.timestored.babeldb.PivotProvider;
 import com.timestored.command.Command;
 import com.timestored.command.CommandProvider;
 import com.timestored.connections.ConnectionManager;
 import com.timestored.connections.JdbcTypes;
 import com.timestored.connections.ServerConfig;
 import com.timestored.kdb.KdbConnection;
-import com.timestored.misc.PivotProvider;
 import com.timestored.qstudio.BackgroundExecutor;
 import com.timestored.qstudio.PivotFormConfig;
 import com.timestored.qstudio.kdb.KdbHelper;
@@ -86,6 +84,7 @@ import com.timestored.theme.Theme;
 	public QueryManager(ConnectionManager connectionManager) {
 		this.connectionManager = connectionManager;
 		connectionManager.addListener(new ConnectionManager.Listener() {
+			@Override public void serverAdded(ServerConfig sc) {  }	
 			@Override public void prefChange() {
 				refreshServerList();
 				KdbConnection c = conn;
@@ -314,7 +313,15 @@ import com.timestored.theme.Theme;
 				k = o;
 				consoleView = (k == null ? "" : KdbHelper.asLine(k));
 			}
-			qr = QueryResult.successfulResult(sc, title, pivotConfig, k, getRS(k), consoleView);
+			ResultSet rs = null;
+			try {
+				if(k != null) {
+					rs = new jdbc.rs(null, k);
+				}
+			} catch(Exception e) {
+				LOG.log(Level.INFO, "No RS possible", e);
+			}
+			qr = QueryResult.successfulResult(sc, title, pivotConfig, k, rs, consoleView);
 			
 		} catch (KException ex) {
 			qr = QueryResult.exceptionResult(sc, title, pivotConfig, ex);
@@ -369,27 +376,6 @@ import com.timestored.theme.Theme;
 			}
 		}
 	}
-
-	/** Return RS for kdb object if possible, otherwise null **/
-	public static ResultSet getRS(Object k) {
-		ResultSet rs = null;
-		try {
-			// check its a format supported by jdbc driver for RS conversion
-			// this is undocumented but I dug into the code.
-			if(k instanceof Flip) {
-				rs  = new jdbc.rs(null, k);
-			} else if(k instanceof Dict) {
-				Dict d = (Dict) k;
-				if((d.x instanceof Flip) && (d.y instanceof Flip)) {
-					rs = new jdbc.rs(null, k);
-				}
-			}
-		} catch(Exception ee) {
-			LOG.warning("error creating RS from KDB object." + ee);
-		}
-		return rs;
-	}
-	
 
 	/**
 	 * @return true if the query sent to the server is wrapped to 

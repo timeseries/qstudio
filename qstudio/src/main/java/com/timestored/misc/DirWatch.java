@@ -18,16 +18,23 @@ package com.timestored.misc;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.monitor.FileAlterationListener;
 import org.apache.commons.io.monitor.FileAlterationMonitor;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import com.google.common.base.Preconditions;
+
+import lombok.RequiredArgsConstructor;
 
 /**
  * Allows watching a specific directory and being notified if it or anything below it changes. 
@@ -42,13 +49,14 @@ public class DirWatch {
 	private final FileFilter fileFilter;
 	private final ChangedFileAlterationListener fileAlterationListener;
 	private final long refreshTimer;
+	public static final int MAX_FILES_TO_WATCH = 1000;
 	
 	private FileAlterationMonitor monitor;
 	private FileAlterationObserver fao;
 	
-	public DirWatch(long refreshTimer, FileFilter fileFilter) {
+	public DirWatch(long refreshTimer, FileFilter fileFilter, boolean ignoreFileChanges) {
 		this.fileFilter = fileFilter;
-		this.fileAlterationListener = new ChangedFileAlterationListener();
+		this.fileAlterationListener = new ChangedFileAlterationListener(ignoreFileChanges);
 		this.refreshTimer = refreshTimer;
 	}
 
@@ -97,8 +105,11 @@ public class DirWatch {
 	/*
 	 * Notify listeners on any change or subfolders / files to folder
 	 */
+	@RequiredArgsConstructor
 	private class ChangedFileAlterationListener implements FileAlterationListener {
 	    
+		private final boolean ignoreFileChanges;
+		
 		@Override public void onStart(final FileAlterationObserver observer) {
 	    	LOG.fine("The WindowsFileListener has started on " + observer.getDirectory().getAbsolutePath());
 	    }
@@ -117,7 +128,7 @@ public class DirWatch {
 	 
 	    @Override public void onFileCreate(final File file) { n(); }
 	 
-	    @Override public void onFileChange(final File file) { n(); }
+	    @Override public void onFileChange(final File file) { if(!ignoreFileChanges) { n(); }; }
 	 
 	    @Override public void onFileDelete(final File file) { n(); }
 	 
@@ -125,4 +136,43 @@ public class DirWatch {
 	    	LOG.fine("The WindowsFileListener has stopped on " + observer.getDirectory().getAbsolutePath());
 	    }
 	}
+
+	public static FileFilter generateFileFilter(final Pattern regex) {
+		return new FileFilter() {
+			@Override public boolean accept(File pathname) {
+				return !regex.matcher(pathname.getName()).matches();
+			}
+		};
+	}
+
+	public static Collection<File> generateFileCache(File[] files, FileFilter fileFilter) {
+		if(files!=null && files.length > 0) {
+			List<File> fs = new ArrayList<File>();
+			addChildren(fs, files, fileFilter);
+			return fs;
+		}
+		return Collections.emptyList();
+	}
+
+	private static void addChildren(List<File> fs, File[] list, FileFilter fileFilter) {
+		if(list != null) {
+			fs.addAll(Arrays.asList(list));
+			for(File curF : list) {
+				if(fs.size() < MAX_FILES_TO_WATCH) {
+					addChildren(fs, getFiles(fileFilter, curF), fileFilter);
+				}
+			}
+		}
+	}
+
+	public static File[] getFiles(FileFilter fileFilter, File f) {
+		File[] files = new File[0];
+		if(fileFilter == null) {
+			files = f.listFiles();
+		} else {
+			files = f.listFiles(fileFilter);
+		}
+		return files;
+	}
+
 }

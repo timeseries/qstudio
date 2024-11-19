@@ -84,13 +84,13 @@ class QueryPreferencesPanel extends PreferencesPanel {
 		panel.add(Box.createVerticalStrut(10));
 		
 		
-		JPanel queryWrapPanel = new JPanel(new BorderLayout());
+		Box queryWrapPanel = Box.createVerticalBox();
 		queryWrapPanel.setBorder(BorderFactory.createTitledBorder("Query Wrapping"));
 		String wrapTooltip = "Any queries sent to a kdb server will be wrapped with these pre/postfixes.";
 		queryWrapPreTextField = new JTextField(20);
 		queryWrapPostTextField = new JTextField(20);
-		queryWrapPanel.add(getFormRow(queryWrapPreTextField, "Prefix:", wrapTooltip), BorderLayout.WEST);
-		queryWrapPanel.add(getFormRow(queryWrapPostTextField, "Postfix:", wrapTooltip), BorderLayout.EAST);
+		queryWrapPanel.add(getFormRow(queryWrapPreTextField, "Prefix:", wrapTooltip));
+		queryWrapPanel.add(getFormRow(queryWrapPostTextField, "Postfix:", wrapTooltip));
 		panel.add(queryWrapPanel);
 		setLayout(new BorderLayout());
 		add(panel, BorderLayout.NORTH);

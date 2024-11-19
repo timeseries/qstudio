@@ -19,6 +19,7 @@ package com.timestored.qstudio;
 import static com.timestored.theme.Theme.getFormRow;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.WindowEvent;
@@ -30,6 +31,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 
@@ -45,8 +47,8 @@ class PreferencesDialog extends JDialog {
 	
 	private static final long serialVersionUID = 1L;
 
-	private final int WIDTH = 500;
-	private final int HEIGHT = 600;
+	private final int WIDTH = 600;
+	private final int HEIGHT = 700;
 
 	private final MyPreferences myPreferences;
 	private final List<PreferencesPanel> prefPanels = Lists.newArrayList();
@@ -60,6 +62,7 @@ class PreferencesDialog extends JDialog {
 		this.myPreferences = Preconditions.checkNotNull(myPreferences);
 		setTitle("Preferences");
 		setSize(WIDTH, HEIGHT);
+		setIconImage(Theme.CIcon.PREFERENCES.get().getImage());
 		setLayout(new BorderLayout());
 		setModalityType(JDialog.ModalityType.APPLICATION_MODAL);
 		
@@ -79,7 +82,7 @@ class PreferencesDialog extends JDialog {
 		prefPanels.add(miscPanel);
 
 		
-		add(tabpane, BorderLayout.NORTH);
+		add(tabpane, BorderLayout.CENTER);
 		add(getCloseSaveBox(), BorderLayout.SOUTH);
 		setLocationRelativeTo(frame);
 		
@@ -128,9 +131,11 @@ class PreferencesDialog extends JDialog {
 	private static class MiscPreferencesPanel extends PreferencesPanel {
 		
 		private static final long serialVersionUID = 1L;
-		private JCheckBox saveWithWindowsLineEndingsCheckBox;
+		private final JCheckBox saveWithWindowsLineEndingsCheckBox;
+		private final JCheckBox sendTelemetryCheckBox;
 		private final JTextField hideNsTextField;
 		private final JTextField hideFoldersTextField;
+		private final JTextField openaiKeyField;
 
 		public MiscPreferencesPanel(MyPreferences myPreferences, Component container) {
 			super(myPreferences, container);
@@ -142,7 +147,6 @@ class PreferencesDialog extends JDialog {
 					" compared to \\n standard found on linux/mac</html>";
 			panel.add(getFormRow(saveWithWindowsLineEndingsCheckBox, "Save with \\r\\n Windows Line Ending:", tooltipText));
 			panel.add(Box.createVerticalStrut(10));
-			
 
 			/* hide namespace config */
 			hideNsTextField = new JTextField(20);
@@ -156,6 +160,22 @@ class PreferencesDialog extends JDialog {
 			panel.add(getFormRow(hideFoldersTextField, "Regex Filter To Hide Folders:", tooltipText));
 			panel.add(Box.createVerticalStrut(10));
 			
+
+			JLabel label = new JLabel("This will send details on your database to OpenAI!!!");
+			label.setForeground(Color.RED);
+			panel.add(getFormRow(label, "Warning:", null));
+			panel.add(getFormRow(new JLabel("Do NOT add a key unless you are happy to send those details."), "Warning:", null));
+			openaiKeyField = new JTextField(40);
+			tooltipText = "<html>This key will be used to generate AI queries.</html>";
+			panel.add(getFormRow(openaiKeyField, "OpenAI Key:", null));
+			panel.add(Box.createVerticalStrut(10));	
+
+			sendTelemetryCheckBox = new JCheckBox();
+			String sendTelemetryTooltipText = "<html>Help TimeStored improve its products by sending anonymous data<br/>" +
+					" about features and plugins used.</html>";
+			panel.add(getFormRow(sendTelemetryCheckBox, "Send Usage Statistics:", sendTelemetryTooltipText));
+			panel.add(Box.createVerticalStrut(10));
+			
 			setLayout(new BorderLayout());
 			add(panel, BorderLayout.NORTH);
 			
@@ -164,18 +184,21 @@ class PreferencesDialog extends JDialog {
 
 		@Override void refresh() {
 			saveWithWindowsLineEndingsCheckBox.setSelected(myPreferences.isSaveWithWindowsLineEndings());
+			sendTelemetryCheckBox.setSelected(myPreferences.isSendTelemetry());
 
 			String hid = Joiner.on(" ").join(myPreferences.getHiddenNamespaces());
 			hideNsTextField.setText(hid);
+			openaiKeyField.setText(myPreferences.getOpenAIkey());
 			
 			hideFoldersTextField.setText(myPreferences.getIgnoreFilterRegex());
 		}
 
 		@Override void saveSettings() {
 			myPreferences.setSaveWithWindowsLineEndings(saveWithWindowsLineEndingsCheckBox.isSelected());
-			
+			myPreferences.setSendTelemetry(sendTelemetryCheckBox.isSelected());
 			String[] ns = hideNsTextField.getText().split(" ");
 			myPreferences.setHiddenNamespaces(ns);
+			myPreferences.setOpenAIkey(openaiKeyField.getText().trim());
 			
 			myPreferences.setIgnoreFilterRegex(hideFoldersTextField.getText());
 		}
