@@ -2,7 +2,7 @@
 
 ![Qstudio](qstudio/qstudio.png)
 
-**qStudio is a free SQL GUI** that lets you browse tables,
+**qStudio is a Free SQL Client and Notebook** that lets you browse tables,
 run SQL scripts, and chart and export the results.
 qStudio runs on Windows, macOS and Linux, and works with
 every popular database including mysql, postgresql, mssql, kdb…
@@ -22,6 +22,12 @@ Apache Calcite Avatica, Snowflake, Elastic Search, MariaDB, Apache Kylin, DB2,
 Teradata, CrateDB, NuoDB, SAP HANA, Gemfire XD, Snappy Data Tibco
 Spark Hive, Kyubi Hive, Yandex Clickhouse, Neo4J, Presto, Trino
 Apache Solr, Apache Ignite, Omnisci, Informix, Sqream, Aurora
+
+## SQL Notebook
+
+Write markdown, generate beautiful reports instantly.
+
+![SQL Notebook](qstudio/qstudio-sql-notebook-demo.gif)
 
 ## Features
 
