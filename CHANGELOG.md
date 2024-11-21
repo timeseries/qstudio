@@ -14,6 +14,7 @@ For more info see:
 ## 4.01 - SQL Notebooks - 2024-11-18
 
 SQL Notebooks official launch version.
+See the [SQLNotebook page](https://www.timestored.com/sqlnotebook/) for details.
 
 ## 3.07 to 3.86 - 2024-09-13 to 2024-11-12
 
